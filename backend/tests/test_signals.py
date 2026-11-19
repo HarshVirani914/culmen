@@ -63,7 +63,7 @@ def test_chat_rate_unavailable_returns_zeros(monkeypatch):
 
 
 def test_chat_rate_detects_spike(monkeypatch):
-    msgs = [(float(t), "hi") for t in range(0, 60, 5)] + [(30.0 + i * 0.1, "LOL") for i in range(40)]
+    msgs = [(float(t), "hi", f"u{t}") for t in range(0, 60, 5)] + [(30.0 + i * 0.1, "LOL", f"v{i}") for i in range(40)]
     monkeypatch.setattr(signals, "_fetch_chat", lambda url, s=None, e=None: msgs)
     out = signals.chat_rate("http://x", 60)
     assert 29 <= int(np.argmax(out)) <= 34
@@ -81,8 +81,18 @@ def test_chat_rate_offset_shifts_timestamps_and_requests_section(monkeypatch):
 
     def fake(url, s=None, e=None):
         seen["range"] = (s, e)
-        return [(1000.0 + 30 + i * 0.1, "LOL") for i in range(40)] + [(1000.0 + t, "hi") for t in range(0, 60, 5)]
+        return ([(1000.0 + 30 + i * 0.1, "LOL", f"v{i}") for i in range(40)]
+                + [(1000.0 + t, "hi", f"u{t}") for t in range(0, 60, 5)])
     monkeypatch.setattr(signals, "_fetch_chat", fake)
     out = signals.chat_rate("http://x", 60, offset=1000)
     assert seen["range"] == (1000, 1060)
     assert 29 <= int(np.argmax(out)) <= 34
+
+
+def test_chat_rate_ignores_single_user_spam_but_counts_many_users(monkeypatch):
+    spam = [(20.0 + i * 0.05, "KEKW", "same-user") for i in range(80)]
+    crowd = [(45.0 + i * 0.1, "LOL", f"user{i}") for i in range(40)]
+    background = [(float(t), "hi", f"bg{t}") for t in range(0, 60, 4)]
+    monkeypatch.setattr(signals, "_fetch_chat", lambda url, s=None, e=None: spam + crowd + background)
+    out = signals.chat_rate("http://x", 60)
+    assert 44 <= int(np.argmax(out)) <= 49

@@ -23,7 +23,7 @@ class JobStore:
         self.dir(jid).mkdir(parents=True)
         self._write(jid, {"id": jid, "url": url, "notes": notes, "status": "queued",
                           "error": None, "candidates": [], "video": None,
-                          "range_start": range_start, "range_end": range_end})
+                          "range_start": range_start, "range_end": range_end, "progress": None})
         return jid
 
     def get(self, job_id: str) -> dict | None:

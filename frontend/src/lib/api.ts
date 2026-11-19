@@ -18,6 +18,7 @@ export type VideoMeta = {
   offset: number
 }
 export type JobStatus = 'queued' | 'downloading' | 'analyzing' | 'ready' | 'error'
+export type JobProgress = { step: 'transcribing' | 'ranking'; done: number; total: number }
 export type Job = {
   id: string
   url: string
@@ -25,6 +26,7 @@ export type Job = {
   error: string | null
   candidates: Candidate[]
   video: VideoMeta | null
+  progress?: JobProgress | null
 }
 export type Profile = { game: Box; face: Box | null }
 export type RenderState = {

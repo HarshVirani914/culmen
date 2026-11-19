@@ -91,9 +91,31 @@ def test_llm_titles_applied_in_analysis(client, monkeypatch):
     monkeypatch.setenv("LLM_BASE_URL", "http://x/v1")
     monkeypatch.setenv("LLM_API_KEY", "k")
     monkeypatch.setenv("LLM_MODEL", "m")
-    monkeypatch.setattr(transcribe, "transcribe", lambda p, s, e: [Word("wow", 0, 1)])
+    monkeypatch.setattr(transcribe, "transcribe_text", lambda p, s, e: "wow")
     monkeypatch.setattr(llm, "rank_candidates", lambda c, t, n, s: [
         llm.RankedCandidate(x, "LLM Title", "hook!", 9.0) for x in c])
     jid = ready_job(client)
     cand = client.get(f"/api/jobs/{jid}").json()["candidates"][0]
     assert cand["title"] == "LLM Title" and cand["hook"] == "hook!"
+
+
+def test_ranking_reports_transcribing_progress(client, monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://x/v1")
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("LLM_MODEL", "m")
+    seen = []
+    holder = {}
+
+    def fake_text(p, s, e):
+        job = client.get(f"/api/jobs/{holder['id']}").json()
+        seen.append(job.get("progress"))
+        return "wow"
+    monkeypatch.setattr(transcribe, "transcribe_text", fake_text)
+    monkeypatch.setattr(llm, "rank_candidates", lambda c, t, n, s: [llm.RankedCandidate(x, "T", "", 5.0) for x in c])
+    from app import main
+    orig = main.run_analysis
+    monkeypatch.setattr(main, "run_analysis", lambda jid, *a: (holder.update(id=jid), orig(jid, *a)))
+    jid = ready_job(client)
+    assert seen and seen[0]["step"] == "transcribing" and seen[0]["done"] == 0
+    assert seen[-1]["done"] == len(seen) - 1 and seen[-1]["total"] == len(seen)
+    assert client.get(f"/api/jobs/{jid}").json()["progress"] is None

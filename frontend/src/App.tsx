@@ -74,7 +74,7 @@ export default function App() {
         <h1 className="text-2xl font-semibold tracking-tight">Shorts Clipper</h1>
         <p className="text-muted-foreground text-sm">Turn stream highlights into vertical Shorts.</p>
       </header>
-      <UrlForm status={job?.status ?? null} onSubmit={start} />
+      <UrlForm status={job?.status ?? null} progress={job?.progress} onSubmit={start} />
       {job?.status === 'ready' && job.video && (
         <>
           <BoxPicker

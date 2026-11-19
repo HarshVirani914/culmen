@@ -1,5 +1,4 @@
 import math
-import re
 import subprocess
 from pathlib import Path
 
@@ -50,32 +49,31 @@ def audio_energy(video_path: Path, duration: float) -> np.ndarray:
     return out[:n]
 
 
-def _fetch_chat(url: str, start: float | None = None, end: float | None = None) -> list[tuple[float, str]]:
-    from chat_downloader import ChatDownloader
+def _fetch_chat(url: str, start: float | None = None, end: float | None = None) -> list[tuple[float, str, str]]:
+    from .chat import fetch_live_chat
 
-    chat = ChatDownloader().get_chat(url, start_time=start, end_time=end, message_groups=["messages"])
-    return [(float(m["time_in_seconds"]), str(m.get("message", ""))) for m in chat
-            if m.get("time_in_seconds") is not None]
+    return [m for m in fetch_live_chat(url)
+            if (start is None or m[0] >= start) and (end is None or m[0] <= end)]
 
 
 def chat_rate(url: str, duration: float, offset: float = 0.0) -> np.ndarray:
-    """Chat spike score per second of the section [offset, offset + duration]."""
+    """Chat spike score per second of the section [offset, offset + duration].
+
+    A second's weight is the number of distinct chatters, so one user spamming does not count as a spike."""
     n = math.ceil(duration)
     try:
         msgs = _fetch_chat(url, offset, offset + duration) if offset else _fetch_chat(url)
-        msgs = [(t - offset, text) for t, text in msgs]
+        msgs = [(m[0] - offset, m[1], m[2] if len(m) > 2 else "") for m in msgs]
     except Exception:
         return np.zeros(n)
     if not msgs:
         return np.zeros(n)
-    counts = np.zeros(n)
-    for t, text in msgs:
+    users: list[set] = [set() for _ in range(n)]
+    for idx, (t, _text, author) in enumerate(msgs):
         i = int(t)
-        if not 0 <= i < n:
-            continue
-        letters = re.sub(r"[^A-Za-z]", "", text)
-        shouty = len(letters) >= 3 and sum(c.isupper() for c in letters) / len(letters) > 0.6
-        counts[i] += 1.5 if shouty else 1.0
+        if 0 <= i < n:
+            users[i].add(author or f"anon{idx}")
+    counts = np.array([len(u) for u in users], dtype=float)
     counts = np.convolve(counts, np.ones(3) / 3, mode="same")
     return normalize(_spike(counts))
 

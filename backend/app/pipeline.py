@@ -10,16 +10,18 @@ from .jobs import JobStore, RenderStore
 from .layouts import Box
 
 
-def _rank(job: dict, vi_path: Path, cands, settings: Settings) -> list[dict]:
+def _rank(job_id: str, store: JobStore, job: dict, vi_path: Path, cands, settings: Settings) -> list[dict]:
     if not settings.llm_enabled:
         ranked = llm.rank_candidates(cands, {}, job["notes"], settings)
     else:
         transcripts: dict[int, str] = {}
         for i, c in enumerate(cands):
+            store.update(job_id, progress={"step": "transcribing", "done": i, "total": len(cands)})
             try:
-                transcripts[i] = " ".join(w.text.strip() for w in transcribe.transcribe(vi_path, c.start, c.end))
+                transcripts[i] = transcribe.transcribe_text(vi_path, c.start, c.end)
             except Exception:  # noqa: BLE001
                 transcripts[i] = ""
+        store.update(job_id, progress={"step": "ranking", "done": len(cands), "total": len(cands)})
         ranked = llm.rank_candidates(cands, transcripts, job["notes"], settings)
     return [{**asdict(r.candidate), "title": r.title, "hook": r.hook, "llm_score": r.llm_score}
             for r in ranked]
@@ -45,9 +47,10 @@ def run_analysis(job_id: str, store: JobStore, settings: Settings) -> None:
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{vi.duration * 0.1:.2f}",
                         "-i", str(vi.path), "-frames:v", "1", str(store.dir(job_id) / "frame.jpg")],
                        check=True)
-        store.update(job_id, status="ready", candidates=_rank(job, vi.path, cands, settings))
+        ranked = _rank(job_id, store, job, vi.path, cands, settings)
+        store.update(job_id, status="ready", candidates=ranked, progress=None)
     except Exception as e:  # noqa: BLE001
-        store.update(job_id, status="error", error=str(e))
+        store.update(job_id, status="error", error=str(e), progress=None)
 
 
 def run_render(rid: str, rstore: RenderStore, jstore: JobStore, job_id: str, req: dict) -> None:

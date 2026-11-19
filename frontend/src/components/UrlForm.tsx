@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
-import type { JobStatus } from '@/lib/api'
+import type { JobProgress, JobStatus } from '@/lib/api'
 import { parseTime } from '@/lib/time'
 
 const STATUS_TEXT: Record<string, string> = {
@@ -16,9 +16,11 @@ const STATUS_TEXT: Record<string, string> = {
 
 export function UrlForm({
   status,
+  progress,
   onSubmit,
 }: {
   status: JobStatus | null
+  progress?: JobProgress | null
   onSubmit: (url: string, notes: string, rangeStart: number | null, rangeEnd: number | null) => void
 }) {
   const [url, setUrl] = useState('')
@@ -87,8 +89,14 @@ export function UrlForm({
             </Button>
             {busy && (
               <div className="flex-1 space-y-1">
-                <Progress value={status === 'analyzing' ? 70 : 30} />
-                <p className="text-muted-foreground text-xs">{STATUS_TEXT[status!]}</p>
+                <Progress value={progress ? 50 + (50 * progress.done) / Math.max(progress.total, 1) : status === 'analyzing' ? 45 : 20} />
+                <p className="text-muted-foreground text-xs">
+                  {progress
+                    ? progress.step === 'transcribing'
+                      ? `Transcribing moments ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
+                      : 'Asking the LLM to rank moments…'
+                    : STATUS_TEXT[status!]}
+                </p>
               </div>
             )}
           </div>
