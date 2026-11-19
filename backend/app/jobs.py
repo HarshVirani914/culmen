@@ -32,3 +32,33 @@ class JobStore:
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(job))
         tmp.replace(p)
+
+
+class RenderStore:
+    def __init__(self, data_dir: Path):
+        self.root = data_dir / "renders"
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def dir(self, rid: str) -> Path:
+        return self.root / rid
+
+    def create(self, job_id: str) -> str:
+        rid = uuid.uuid4().hex[:12]
+        self.dir(rid).mkdir(parents=True)
+        self._write(rid, {"id": rid, "job_id": job_id, "status": "queued", "error": None})
+        return rid
+
+    def get(self, rid: str) -> dict | None:
+        p = self.dir(rid) / "render.json"
+        return json.loads(p.read_text()) if p.exists() else None
+
+    def update(self, rid: str, **fields) -> None:
+        r = self.get(rid)
+        r.update(fields)
+        self._write(rid, r)
+
+    def _write(self, rid: str, r: dict) -> None:
+        p = self.dir(rid) / "render.json"
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(r))
+        tmp.replace(p)

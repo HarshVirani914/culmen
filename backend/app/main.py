@@ -1,11 +1,13 @@
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .config import ffmpeg_available, get_settings
 from .download import validate_url
-from .jobs import JobStore
-from .pipeline import run_analysis
+from .jobs import JobStore, RenderStore
+from .layouts import LAYOUTS
+from .pipeline import run_analysis, run_render
+from .profiles import ProfileStore
 
 app = FastAPI(title="Shorts Clipper")
 
@@ -17,6 +19,28 @@ def store() -> JobStore:
 class JobIn(BaseModel):
     url: str
     notes: str = ""
+
+
+class BoxIn(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+
+class ProfileIn(BaseModel):
+    game: BoxIn
+    face: BoxIn | None = None
+
+
+class RenderIn(BaseModel):
+    start: float = Field(ge=0)
+    end: float
+    layout: str
+    game: BoxIn
+    face: BoxIn | None = None
+    captions: bool = False
+    credit: bool = False
 
 
 @app.get("/api/health")
@@ -50,3 +74,53 @@ def get_frame(job_id: str):
     if not p.exists():
         raise HTTPException(404, "frame not ready")
     return FileResponse(p, media_type="image/jpeg")
+
+
+@app.get("/api/profiles/{channel_id}")
+def get_profile(channel_id: str):
+    return ProfileStore(get_settings().data_dir).get(channel_id)
+
+
+@app.put("/api/profiles/{channel_id}")
+def put_profile(channel_id: str, body: ProfileIn):
+    ProfileStore(get_settings().data_dir).save(
+        channel_id, body.game.model_dump(), body.face.model_dump() if body.face else None)
+    return {"ok": True}
+
+
+@app.post("/api/jobs/{job_id}/render")
+def start_render(job_id: str, body: RenderIn, bg: BackgroundTasks):
+    js = store()
+    job = js.get(job_id)
+    if job is None:
+        raise HTTPException(404, "job not found")
+    if job["status"] != "ready":
+        raise HTTPException(409, "job is not ready")
+    if body.layout not in LAYOUTS:
+        raise HTTPException(422, f"layout must be one of {LAYOUTS}")
+    if body.layout != "game_only" and body.face is None:
+        raise HTTPException(422, "this layout needs a facecam box")
+    if body.end <= body.start:
+        raise HTTPException(422, "end must be after start")
+    if body.end - body.start > 90:
+        raise HTTPException(422, "clip too long (max 90 s)")
+    rs = RenderStore(get_settings().data_dir)
+    rid = rs.create(job_id)
+    bg.add_task(run_render, rid, rs, js, job_id, body.model_dump())
+    return {"render_id": rid}
+
+
+@app.get("/api/renders/{render_id}")
+def get_render(render_id: str):
+    r = RenderStore(get_settings().data_dir).get(render_id)
+    if r is None:
+        raise HTTPException(404, "render not found")
+    return {**r, "url": f"/api/renders/{render_id}/file" if r["status"] == "done" else None}
+
+
+@app.get("/api/renders/{render_id}/file")
+def get_render_file(render_id: str):
+    p = RenderStore(get_settings().data_dir).dir(render_id) / "out.mp4"
+    if not p.exists():
+        raise HTTPException(404, "not ready")
+    return FileResponse(p, media_type="video/mp4", filename="short.mp4")
