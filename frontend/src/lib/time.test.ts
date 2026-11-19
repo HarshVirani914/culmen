@@ -22,3 +22,39 @@ describe('fmtTime', () => {
     expect(fmtTime(3725)).toBe('1:02:05')
   })
 })
+
+import { hmsToSeconds, rangeProblem } from './time'
+
+describe('hmsToSeconds', () => {
+  it('combines hours, minutes and seconds', () => {
+    expect(hmsToSeconds('1', '0', '0')).toBe(3600)
+    expect(hmsToSeconds('2', '30', '15')).toBe(9015)
+    expect(hmsToSeconds('', '5', '')).toBe(300)
+  })
+  it('returns null when every part is empty', () => {
+    expect(hmsToSeconds('', '', '')).toBeNull()
+    expect(hmsToSeconds(' ', '', ' ')).toBeNull()
+  })
+  it('returns NaN for invalid parts and out-of-range minutes or seconds', () => {
+    expect(hmsToSeconds('a', '', '')).toBeNaN()
+    expect(hmsToSeconds('1', '60', '0')).toBeNaN()
+    expect(hmsToSeconds('1', '0', '75')).toBeNaN()
+    expect(hmsToSeconds('-1', '0', '0')).toBeNaN()
+  })
+})
+
+describe('rangeProblem', () => {
+  it('accepts an empty range or a sensible one', () => {
+    expect(rangeProblem(null, null)).toBeNull()
+    expect(rangeProblem(3600, 7200)).toBeNull()
+    expect(rangeProblem(3600, null)).toBeNull()
+  })
+  it('explains too short, reversed and too long ranges', () => {
+    expect(rangeProblem(1, 2)).toMatch(/too short/i)
+    expect(rangeProblem(7200, 3600)).toMatch(/after/i)
+    expect(rangeProblem(0, 4 * 3600)).toMatch(/3 hours/)
+  })
+  it('flags invalid values', () => {
+    expect(rangeProblem(NaN, 100)).toMatch(/valid/i)
+  })
+})

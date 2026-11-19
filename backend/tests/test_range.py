@@ -151,3 +151,13 @@ def test_download_is_configured_to_retry_on_network_timeouts(monkeypatch, tmp_pa
     o = NativeYDL.seen["opts"]
     assert o["retries"] >= 5 and o["fragment_retries"] >= 5 and 0 < o["socket_timeout"] <= 60
     assert o["concurrent_fragment_downloads"] >= 16  # live-stream replays are thousands of throttled fragments
+
+
+@pytest.mark.parametrize("kw", [
+    {"range_start": 1, "range_end": 2},         # "1 to 2" typed meaning hours
+    {"range_start": 100, "range_end": 110},
+])
+def test_tiny_ranges_rejected_with_a_helpful_message(client, kw):
+    r = post(client, **kw)
+    assert r.status_code == 422
+    assert "too short" in r.json()["detail"] and "h:mm:ss" in r.json()["detail"]

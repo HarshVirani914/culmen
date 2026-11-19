@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from .config import ROOT, captions_available, ffmpeg_available, get_settings
 from .download import MAX_SECTION, validate_url
+
+MIN_RANGE = 20  # seconds
 from .jobs import JobStore, RenderStore
 from .layouts import LAYOUTS
 from .live.session import get_manager
@@ -65,6 +67,10 @@ def create_job(body: JobIn, bg: BackgroundTasks):
     if rs is not None and re_ is not None:
         if re_ <= rs:
             raise HTTPException(422, "range end must be after range start")
+        if re_ - rs < MIN_RANGE:
+            raise HTTPException(
+                422, f"time range too short ({re_ - rs:.0f} s). Plain numbers are seconds; "
+                     "use h:mm:ss, e.g. 1:00:00 to 2:00:00.")
         if re_ - rs > MAX_SECTION:
             raise HTTPException(422, f"time range too long (max {MAX_SECTION // 3600} h)")
     s = store()

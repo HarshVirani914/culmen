@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import type { JobProgress, JobStatus } from '@/lib/api'
-import { parseTime } from '@/lib/time'
+import { fmtTime, hmsToSeconds, rangeProblem } from '@/lib/time'
+import { EMPTY_HMS, TimeInput, type HMS } from '@/components/TimeInput'
 
 const STATUS_TEXT: Record<string, string> = {
   queued: 'Queued…',
@@ -25,18 +26,11 @@ export function UrlForm({
 }) {
   const [url, setUrl] = useState('')
   const [notes, setNotes] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const rs = parseTime(from)
-  const re = parseTime(to)
-  const rangeError =
-    Number.isNaN(rs) || Number.isNaN(re)
-      ? 'Use h:mm:ss, m:ss or seconds'
-      : rs !== null && re !== null && re <= rs
-        ? 'End must be after start'
-        : rs !== null && re !== null && re - rs > 3 * 3600
-          ? 'Max 3 hours per analysis'
-          : null
+  const [from, setFrom] = useState<HMS>(EMPTY_HMS)
+  const [to, setTo] = useState<HMS>(EMPTY_HMS)
+  const rs = hmsToSeconds(from.h, from.m, from.s)
+  const re = hmsToSeconds(to.h, to.m, to.s)
+  const rangeError = rangeProblem(rs, re)
   const busy = status !== null && status !== 'ready' && status !== 'error'
 
   return (
@@ -75,13 +69,32 @@ export function UrlForm({
           </div>
           <div className="grid gap-2">
             <Label>Time range (optional, recommended for long streams)</Label>
-            <div className="flex items-center gap-2">
-              <Input placeholder="From, e.g. 1:00:00" value={from} onChange={(e) => setFrom(e.target.value)} disabled={busy} />
+            <div className="flex flex-wrap items-center gap-3">
+              <TimeInput id="range-from" label="From" value={from} onChange={setFrom} disabled={busy} />
               <span className="text-muted-foreground">to</span>
-              <Input placeholder="To, e.g. 2:00:00" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} />
+              <TimeInput id="range-to" label="To" value={to} onChange={setTo} disabled={busy} />
+              {[from.h, from.m, from.s, to.h, to.m, to.s].some(Boolean) && (
+                <button
+                  type="button"
+                  className="text-muted-foreground text-xs underline"
+                  onClick={() => {
+                    setFrom(EMPTY_HMS)
+                    setTo(EMPTY_HMS)
+                  }}
+                >
+                  Clear
+                </button>
+              )}
             </div>
-            {rangeError && <p className="text-destructive text-xs">{rangeError}</p>}
-            <p className="text-muted-foreground text-xs">Only this section is downloaded. Videos over 3 hours need a range.</p>
+            {rangeError ? (
+              <p className="text-destructive text-xs">{rangeError}</p>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                {rs !== null && re !== null
+                  ? `Analyzes ${fmtTime(rs)} to ${fmtTime(re)} (${fmtTime(re - rs)} long).`
+                  : 'Hours, minutes, seconds. Only this section is downloaded. Videos over 4 hours need a range.'}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <Button type="submit" disabled={busy || !url.trim() || !!rangeError}>

@@ -42,3 +42,22 @@ def test_sorted_by_score_and_capped():
     c = find_candidates(s, DUR, top_k=5)
     assert len(c) == 5
     assert [x.score for x in c] == sorted((x.score for x in c), reverse=True)
+
+
+def test_noisy_stream_without_strong_spikes_still_returns_best_moments():
+    rng = np.random.default_rng(1)
+    s = np.clip(0.4 + rng.normal(0, 0.03, DUR), 0, 1)  # loud all the time, no real spike
+    s[200:205] += 0.08
+    s[400:405] += 0.07
+    s[50:55] += 0.06
+    c = find_candidates(s, DUR)
+    assert len(c) >= 3
+    assert [x.score for x in c] == sorted((x.score for x in c), reverse=True)
+
+
+def test_fallback_candidates_do_not_overlap_and_all_zero_still_empty():
+    rng = np.random.default_rng(2)
+    c = find_candidates(np.clip(0.4 + rng.normal(0, 0.03, DUR), 0, 1), DUR)
+    for a, b in zip(sorted(c, key=lambda x: x.start), sorted(c, key=lambda x: x.start)[1:]):
+        assert a.end <= b.start
+    assert find_candidates(np.zeros(DUR), DUR) == []
