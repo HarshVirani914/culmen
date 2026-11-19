@@ -1,8 +1,11 @@
 from fastapi import BackgroundTasks, FastAPI, HTTPException
+from pathlib import Path
+
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .config import ffmpeg_available, get_settings
+from .config import ROOT, ffmpeg_available, get_settings
 from .download import validate_url
 from .jobs import JobStore, RenderStore
 from .layouts import LAYOUTS
@@ -124,3 +127,22 @@ def get_render_file(render_id: str):
     if not p.exists():
         raise HTTPException(404, "not ready")
     return FileResponse(p, media_type="video/mp4", filename="short.mp4")
+
+
+def mount_frontend(app: FastAPI, dist: Path) -> None:
+    if not (dist / "index.html").exists():
+        return
+    if (dist / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        if path.startswith("api/"):
+            raise HTTPException(404, "not found")
+        f = (dist / path).resolve()
+        if path and f.is_file() and dist.resolve() in f.parents:
+            return FileResponse(f)
+        return FileResponse(dist / "index.html")
+
+
+mount_frontend(app, ROOT / "frontend" / "dist")
