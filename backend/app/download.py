@@ -5,6 +5,14 @@ from pathlib import Path
 from .config import ffmpeg_bin
 
 
+# yt-dlp extractor names (regexes) we allow; the generic extractor is deliberately excluded.
+ALLOWED_EXTRACTORS = [
+    "youtube", "youtube:tab", "YoutubeYtBe",
+    "twitch:stream", "twitch:vod", "twitch:clips",
+    "kick:live", "kick:vod", "kick:clips", "kick:clip",
+]
+
+
 @dataclass
 class VideoInfo:
     path: Path
@@ -54,7 +62,7 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
     from yt_dlp.utils import download_range_func
 
     dest_dir.mkdir(parents=True, exist_ok=True)
-    base = {"quiet": True, "noplaylist": True, "allowed_extractors": ["youtube", "youtube:tab"],
+    base = {"quiet": True, "noplaylist": True, "allowed_extractors": ALLOWED_EXTRACTORS,
             "retries": 10, "fragment_retries": 10, "extractor_retries": 3, "socket_timeout": 30}
     with yt_dlp.YoutubeDL({**base, "skip_download": True}) as ydl:
         meta = ydl.extract_info(url, download=False)
@@ -116,7 +124,7 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
     )
 
 
-ALLOWED_HOSTS = ("youtube.com", "youtu.be")
+ALLOWED_HOSTS = ("youtube.com", "youtu.be", "twitch.tv", "kick.com")
 
 
 def validate_url(url: str) -> str:

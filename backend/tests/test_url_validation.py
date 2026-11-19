@@ -33,3 +33,33 @@ def test_api_rejects_bad_url(tmp_path, monkeypatch):
     from app.main import app
     r = TestClient(app).post("/api/jobs", json={"url": "http://127.0.0.1/x", "notes": ""})
     assert r.status_code == 422
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.twitch.tv/videos/123",
+    "https://twitch.tv/somechannel",
+    "https://m.twitch.tv/x",
+    "https://kick.com/somechannel",
+    "https://www.kick.com/somechannel",
+])
+def test_twitch_and_kick_urls_valid(url):
+    assert validate_url(url) == url
+
+
+@pytest.mark.parametrize("url", [
+    "https://twitch.tv.evil.com/x",
+    "https://kick.com.evil.com/x",
+    "https://evilkick.com/x",
+    "https://nottwitch.tv/x",
+])
+def test_lookalike_hosts_rejected_for_new_platforms(url):
+    with pytest.raises(ValueError):
+        validate_url(url)
+
+
+def test_extractor_list_covers_platforms():
+    import re
+    from app.download import ALLOWED_EXTRACTORS
+    for name in ("youtube", "youtube:tab", "YoutubeYtBe", "twitch:stream", "twitch:vod", "twitch:clips", "kick:live", "kick:vod"):
+        assert any(re.fullmatch(p, name) for p in ALLOWED_EXTRACTORS), name
+    assert not any(re.fullmatch(p, "generic") for p in ALLOWED_EXTRACTORS)
