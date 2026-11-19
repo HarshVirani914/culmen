@@ -22,3 +22,4 @@ Range feature: complete (backend 91 passed, vitest 8 passed). Guard: sections >3
 Real-stream test (IShowSpeed 24h live replay, range 2:00:00-2:30:00): ranged download returned empty file; works on normal video. Added clear error. Needs a normal-length replay to test LLM end to end.
 Live T1: complete (pytest 117 passed; also fixed youtu.be short links being blocked by extractor allowlist)
 Live T2: complete (render tests 9 passed)
+Live T3: complete (pytest tests/test_live_detector.py → 9 passed)
