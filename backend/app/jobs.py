@@ -1,6 +1,10 @@
 import json
+import re
 import uuid
 from pathlib import Path
+
+
+ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
 
 class JobStore:
@@ -9,6 +13,8 @@ class JobStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def dir(self, job_id: str) -> Path:
+        if not ID_RE.match(job_id):
+            return self.root / "_invalid"
         return self.root / job_id
 
     def create(self, url: str, notes: str) -> str:
@@ -40,6 +46,8 @@ class RenderStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def dir(self, rid: str) -> Path:
+        if not ID_RE.match(rid):
+            return self.root / "_invalid"
         return self.root / rid
 
     def create(self, job_id: str) -> str:

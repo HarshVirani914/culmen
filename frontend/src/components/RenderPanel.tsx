@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import { getHealth, getRender, startRender, type Box, type Layout, type RenderState } from '@/lib/api'
 
 const LAYOUT_LABELS: Record<Layout, string> = {
@@ -119,16 +119,24 @@ export function RenderPanel({
         <CardDescription>1080×1920 MP4, ready for Shorts.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <Tabs value={layout} onValueChange={(v) => setLayout(v as Layout)}>
-          <TabsList className="h-auto flex-wrap">
-            {(Object.keys(LAYOUT_LABELS) as Layout[]).map((l) => (
-              <TabsTrigger key={l} value={l} className="flex-col gap-2 p-2">
-                <Diagram layout={l} />
-                <span className="text-xs">{LAYOUT_LABELS[l]}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div role="radiogroup" aria-label="Layout" className="flex flex-wrap gap-3">
+          {(Object.keys(LAYOUT_LABELS) as Layout[]).map((l) => (
+            <button
+              key={l}
+              type="button"
+              role="radio"
+              aria-checked={layout === l}
+              onClick={() => setLayout(l)}
+              className={cn(
+                'flex flex-col items-center gap-2 rounded-lg border p-3 text-xs transition',
+                layout === l ? 'border-primary ring-primary/30 bg-muted ring-2' : 'hover:bg-muted/50',
+              )}
+            >
+              <Diagram layout={l} />
+              {LAYOUT_LABELS[l]}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-6">
           <div className="flex items-center gap-2">
             <Switch id="captions" disabled={!captionsOk} checked={captions} onCheckedChange={setCaptions} />

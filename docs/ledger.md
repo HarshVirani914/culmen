@@ -16,3 +16,4 @@ Task 9: complete (vitest 5 passed, npm run build OK; no browser check yet, done 
 Task 10 (partial): serve + run.sh + README committed, pytest 71 passed; e2e pending
 Ruling: ffmpeg picked via FFMPEG_BIN or first build with libass (ffmpeg-full is installed, keg-only) — default brew ffmpeg lacks the ass filter — captions/credit return 422 and UI disables them if none found
 Found by e2e: ass filter missing in default ffmpeg; fixed with real-render tests (77 backend tests passing)
+Task 10: complete (backend pytest 78, vitest 5; real e2e on public video: analyze OK, 4 layouts 1080x1920 h264 OK, Whisper captions+credit OK). Ruling: transcribe feeds ffmpeg-decoded float32 to faster-whisper — installed PyAV rejects metadata_errors
