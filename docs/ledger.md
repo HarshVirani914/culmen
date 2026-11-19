@@ -24,3 +24,4 @@ Live T1: complete (pytest 117 passed; also fixed youtu.be short links being bloc
 Live T2: complete (render tests 9 passed)
 Live T3: complete (pytest tests/test_live_detector.py → 9 passed)
 Live T4: complete (buffer+storage tests 9 passed). Ruling: enforce_cap(root, ids oldest-first, cap_bytes, keep) so it only touches moment jobs, never normal replay jobs
+Live T5: complete (recorder tests 6 passed, real ffmpeg with local file as fake live source)
