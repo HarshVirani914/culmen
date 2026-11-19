@@ -18,3 +18,4 @@ Ruling: ffmpeg picked via FFMPEG_BIN or first build with libass (ffmpeg-full is 
 Found by e2e: ass filter missing in default ffmpeg; fixed with real-render tests (77 backend tests passing)
 Task 10: complete (backend pytest 78, vitest 5; real e2e on public video: analyze OK, 4 layouts 1080x1920 h264 OK, Whisper captions+credit OK). Ruling: transcribe feeds ffmpeg-decoded float32 to faster-whisper — installed PyAV rejects metadata_errors
 Final review: self-review (no fresh reviewer dispatched). Final: hardening — job/render ids validated (test passed before change too: defence in depth, no RED). Suite 82 backend + 5 frontend.
+Range feature: complete (backend 91 passed, vitest 8 passed). Guard: sections >3h refused before download (24h stream nearly downloaded whole)

@@ -76,3 +76,24 @@ def test_huge_section_refused(monkeypatch, tmp_path):
     monkeypatch.setattr(yt_dlp, "YoutubeDL", FakeYDL)
     with pytest.raises(ValueError, match="range"):
         download.download_video("https://youtu.be/x", tmp_path, start=0, end=5 * 3600)
+
+
+class WritingYDL(FakeYDL):
+    def extract_info(self, url, download=True):
+        if not download:
+            return {"duration": 7200, "title": "t"}
+        (self.dest / "video.mp4").write_bytes(b"x" * 300)
+        return {"title": "t", "width": 1920, "height": 1080}
+
+
+def test_empty_ranged_download_gives_clear_error(monkeypatch, tmp_path):
+    import yt_dlp
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(WritingYDL(opts), tmp_path))
+    monkeypatch.setattr(download, "_probe_duration", lambda p: 2.0)
+    with pytest.raises(RuntimeError, match="time range"):
+        download.download_video("https://youtu.be/x", tmp_path, start=100, end=700)
+
+
+def _with_dest(y, dest):
+    y.dest = dest
+    return y

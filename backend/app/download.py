@@ -14,6 +14,17 @@ class VideoInfo:
     info: dict
 
 
+def _probe_duration(path: Path) -> float:
+    import subprocess
+
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                              str(path)], capture_output=True, text=True, timeout=30).stdout.strip()
+        return float(out)
+    except Exception:
+        return 0.0
+
+
 MAX_SECTION = 3 * 3600  # seconds; keeps downloads to a few GB
 
 
@@ -52,6 +63,10 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
         if not found:
             raise RuntimeError("download produced no file")
         path = found[0]
+    if ranged and length > 5 and _probe_duration(path) < 0.5 * length:
+        raise RuntimeError(
+            "The time range could not be downloaded from this video (common with very long live-stream "
+            "replays). Try a different range or a shorter replay.")
     return VideoInfo(
         path=path,
         title=info.get("title") or "",
