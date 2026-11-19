@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .config import ROOT, ffmpeg_available, get_settings
+from .config import ROOT, captions_available, ffmpeg_available, get_settings
 from .download import validate_url
 from .jobs import JobStore, RenderStore
 from .layouts import LAYOUTS
@@ -48,7 +48,8 @@ class RenderIn(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "ffmpeg": ffmpeg_available(), "llm": get_settings().llm_enabled}
+    return {"ok": True, "ffmpeg": ffmpeg_available(), "captions": captions_available(),
+            "llm": get_settings().llm_enabled}
 
 
 @app.post("/api/jobs")
@@ -105,6 +106,8 @@ def start_render(job_id: str, body: RenderIn, bg: BackgroundTasks):
         raise HTTPException(422, "this layout needs a facecam box")
     if body.end <= body.start:
         raise HTTPException(422, "end must be after start")
+    if (body.captions or body.credit) and not captions_available():
+        raise HTTPException(422, "captions and credit line need an ffmpeg built with libass (brew install ffmpeg-full)")
     if body.end - body.start > 90:
         raise HTTPException(422, "clip too long (max 90 s)")
     rs = RenderStore(get_settings().data_dir)

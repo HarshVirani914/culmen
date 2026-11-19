@@ -13,3 +13,4 @@ Security fix: complete (uv run pytest → 58 passed)
 Task 7: complete (uv run pytest → 67 passed; ruling: GET missing profile returns 200 null not 404 — avoids console 404 noise in UI)
 Task 8: complete (npm run build OK; ruling: removed tsconfig baseUrl, TS7 dropped it)
 Task 9: complete (vitest 5 passed, npm run build OK; no browser check yet, done in T10)
+Task 10 (partial): serve + run.sh + README committed, pytest 71 passed; e2e pending

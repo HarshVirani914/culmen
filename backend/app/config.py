@@ -1,5 +1,6 @@
 import os
 import shutil
+from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,3 +32,32 @@ def get_settings() -> Settings:
 
 def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None
+
+
+_FULL_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
+
+
+def _has_ass(binary: str) -> bool:
+    import subprocess
+
+    try:
+        out = subprocess.run([binary, "-hide_banner", "-filters"], capture_output=True, text=True, timeout=15).stdout
+    except Exception:
+        return False
+    return " ass " in out
+
+
+@lru_cache(maxsize=1)
+def ffmpeg_bin() -> str:
+    """FFMPEG_BIN if set, else the first ffmpeg that can burn ASS captions, else plain ffmpeg."""
+    env = os.environ.get("FFMPEG_BIN")
+    if env:
+        return env
+    for cand in (shutil.which("ffmpeg"), _FULL_FFMPEG):
+        if cand and os.path.exists(cand) and _has_ass(cand):
+            return cand
+    return shutil.which("ffmpeg") or "ffmpeg"
+
+
+def captions_available() -> bool:
+    return _has_ass(ffmpeg_bin())

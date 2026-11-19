@@ -57,5 +57,5 @@ def build_filter_complex(layout: str, game: Box, face: Box | None, src_w: int, s
                 f"[b]scale={W}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
     else:
         body = f"[0:v]{_cover(face, src_w, src_h, W, H)}[v0]"
-    tail = f"[v0]ass='{_esc(ass_path)}'[out]" if ass_path else "[v0]null[out]"
+    tail = f"[v0]ass=filename='{_esc(ass_path)}'[out]" if ass_path else "[v0]null[out]"
     return f"{body};{tail}"

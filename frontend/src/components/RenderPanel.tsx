@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getRender, startRender, type Box, type Layout, type RenderState } from '@/lib/api'
+import { getHealth, getRender, startRender, type Box, type Layout, type RenderState } from '@/lib/api'
 
 const LAYOUT_LABELS: Record<Layout, string> = {
   stacked: 'Stacked',
@@ -55,7 +55,20 @@ export function RenderPanel({
   const [credit, setCredit] = useState(true)
   const [render, setRender] = useState<RenderState | null>(null)
   const [busy, setBusy] = useState(false)
+  const [captionsOk, setCaptionsOk] = useState(true)
   const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    getHealth()
+      .then((h) => {
+        setCaptionsOk(h.captions)
+        if (!h.captions) {
+          setCaptions(false)
+          setCredit(false)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => () => {
     if (timer.current) window.clearInterval(timer.current)
@@ -118,14 +131,19 @@ export function RenderPanel({
         </Tabs>
         <div className="flex flex-wrap gap-6">
           <div className="flex items-center gap-2">
-            <Switch id="captions" checked={captions} onCheckedChange={setCaptions} />
+            <Switch id="captions" disabled={!captionsOk} checked={captions} onCheckedChange={setCaptions} />
             <Label htmlFor="captions">Captions (needs transcription, slower)</Label>
           </div>
           <div className="flex items-center gap-2">
-            <Switch id="credit" checked={credit} onCheckedChange={setCredit} />
+            <Switch id="credit" disabled={!captionsOk} checked={credit} onCheckedChange={setCredit} />
             <Label htmlFor="credit">Source credit line</Label>
           </div>
         </div>
+        {!captionsOk && (
+          <p className="text-muted-foreground text-sm">
+            Captions and credit line are off: this ffmpeg has no libass. Run <code>brew install ffmpeg-full</code>.
+          </p>
+        )}
         {needsFace && !face && (
           <p className="text-destructive text-sm">This layout needs a facecam box. Turn it on in step 2.</p>
         )}

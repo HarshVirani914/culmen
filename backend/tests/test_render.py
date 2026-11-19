@@ -30,3 +30,16 @@ def test_render_produces_1080x1920_mp4(src, tmp_path, layout):
     v = next(s for s in info["streams"] if s["codec_type"] == "video")
     assert (v["width"], v["height"], v["codec_name"]) == (1080, 1920, "h264")
     assert abs(float(info["format"]["duration"]) - 3) < 0.5
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_render_with_ass_captions_and_spaces_in_path(src, tmp_path, layout):
+    from app.captions import Word, build_ass
+    d = tmp_path / "dir with space"
+    d.mkdir()
+    ass = d / "c.ass"
+    build_ass([Word("hello", 0, 0.5), Word("world", 0.5, 1.0)], ass, credit="Source: Chan", clip_len=3)
+    out = tmp_path / "o.mp4"
+    render_clip(src, out, 1, 4, layout, Box(0, 0, 0.7, 1), Box(0.75, 0.05, 0.2, 0.3), 1280, 720, ass)
+    v = next(s for s in probe(out)["streams"] if s["codec_type"] == "video")
+    assert (v["width"], v["height"]) == (1080, 1920)

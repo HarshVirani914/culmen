@@ -74,3 +74,5 @@ export const saveProfile = (channelId: string, p: Profile) =>
 export const startRender = (jobId: string, r: RenderRequest) =>
   req<{ render_id: string }>(`/api/jobs/${jobId}/render`, { method: 'POST', body: JSON.stringify(r) })
 export const getRender = (id: string) => req<RenderState>(`/api/renders/${id}`)
+export const getHealth = () =>
+  req<{ ok: boolean; ffmpeg: boolean; captions: boolean; llm: boolean }>('/api/health')
