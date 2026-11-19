@@ -1,0 +1,69 @@
+import subprocess
+
+import numpy as np
+
+from app import signals
+
+
+def ff(*args):
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
+
+
+def test_normalize_constant_is_zeros():
+    assert (signals.normalize(np.full(5, 3.0)) == 0).all()
+
+
+def test_normalize_range():
+    out = signals.normalize(np.array([2.0, 4.0, 6.0]))
+    assert out.min() == 0 and out.max() == 1
+
+
+def test_heatmap_signal_resamples():
+    info = {"heatmap": [
+        {"start_time": 0, "end_time": 5, "value": 0.2},
+        {"start_time": 5, "end_time": 10, "value": 0.8},
+    ]}
+    out = signals.heatmap_signal(info, 10)
+    assert len(out) == 10
+    assert out[0] < out[9]
+
+
+def test_heatmap_signal_missing_returns_zeros():
+    out = signals.heatmap_signal({}, 10)
+    assert len(out) == 10 and (out == 0).all()
+    assert (signals.heatmap_signal({"heatmap": None}, 10) == 0).all()
+
+
+def test_combine_skips_all_zero_parts():
+    audio = np.array([0, 0, 1.0, 0, 0])
+    out = signals.combine({"audio": audio, "chat": np.zeros(5)}, {"audio": 0.25, "chat": 0.35})
+    assert np.allclose(out, signals.normalize(audio))
+
+
+def test_audio_energy_detects_loud_burst(tmp_path):
+    wav = tmp_path / "a.wav"
+    ff("-f", "lavfi", "-i", "sine=f=440:d=10", "-af", "volume='if(between(t,5,6),1,0.02)':eval=frame", str(wav))
+    out = signals.audio_energy(wav, 10)
+    assert abs(int(np.argmax(out)) - 5) <= 1
+
+
+def test_audio_energy_no_audio_stream_returns_zeros(tmp_path):
+    mp4 = tmp_path / "v.mp4"
+    ff("-f", "lavfi", "-i", "testsrc=d=5:s=160x90", "-an", str(mp4))
+    out = signals.audio_energy(mp4, 5)
+    assert len(out) == 5 and (out == 0).all()
+
+
+def test_chat_rate_unavailable_returns_zeros(monkeypatch):
+    def boom(url):
+        raise RuntimeError("chat disabled")
+    monkeypatch.setattr(signals, "_fetch_chat", boom)
+    out = signals.chat_rate("http://x", 10)
+    assert len(out) == 10 and (out == 0).all()
+
+
+def test_chat_rate_detects_spike(monkeypatch):
+    msgs = [(float(t), "hi") for t in range(0, 60, 5)] + [(30.0 + i * 0.1, "LOL") for i in range(40)]
+    monkeypatch.setattr(signals, "_fetch_chat", lambda url: msgs)
+    out = signals.chat_rate("http://x", 60)
+    assert 29 <= int(np.argmax(out)) <= 34
