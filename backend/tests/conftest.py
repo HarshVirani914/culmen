@@ -16,11 +16,11 @@ def client(tmp_path, monkeypatch):
     vid = tmp_path / "fake.mp4"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=d=40:s=320x180:r=10",
                     "-f", "lavfi", "-i", "sine=d=40", "-shortest", "-pix_fmt", "yuv420p", str(vid)], check=True)
-    monkeypatch.setattr(download, "download_video", lambda url, d: VideoInfo(
+    monkeypatch.setattr(download, "download_video", lambda url, d, start=None, end=None: VideoInfo(
         vid, "T", "UC1", "Chan", 40.0, 320, 180, {}))
     bump = np.zeros(40); bump[20:24] = 1
     monkeypatch.setattr(signals, "audio_energy", lambda p, d: bump)
-    monkeypatch.setattr(signals, "chat_rate", lambda u, d: np.zeros(40))
+    monkeypatch.setattr(signals, "chat_rate", lambda u, d, o=0.0: np.zeros(40))
     from app.main import app
     return TestClient(app)
 

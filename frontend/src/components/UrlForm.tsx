@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import type { JobStatus } from '@/lib/api'
+import { parseTime } from '@/lib/time'
 
 const STATUS_TEXT: Record<string, string> = {
   queued: 'Queued…',
@@ -18,10 +19,22 @@ export function UrlForm({
   onSubmit,
 }: {
   status: JobStatus | null
-  onSubmit: (url: string, notes: string) => void
+  onSubmit: (url: string, notes: string, rangeStart: number | null, rangeEnd: number | null) => void
 }) {
   const [url, setUrl] = useState('')
   const [notes, setNotes] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const rs = parseTime(from)
+  const re = parseTime(to)
+  const rangeError =
+    Number.isNaN(rs) || Number.isNaN(re)
+      ? 'Use h:mm:ss, m:ss or seconds'
+      : rs !== null && re !== null && re <= rs
+        ? 'End must be after start'
+        : rs !== null && re !== null && re - rs > 3 * 3600
+          ? 'Max 3 hours per analysis'
+          : null
   const busy = status !== null && status !== 'ready' && status !== 'error'
 
   return (
@@ -35,7 +48,7 @@ export function UrlForm({
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault()
-            if (url.trim()) onSubmit(url.trim(), notes.trim())
+            if (url.trim() && !rangeError) onSubmit(url.trim(), notes.trim(), rs, re)
           }}
         >
           <div className="grid gap-2">
@@ -58,8 +71,18 @@ export function UrlForm({
               disabled={busy}
             />
           </div>
+          <div className="grid gap-2">
+            <Label>Time range (optional, recommended for long streams)</Label>
+            <div className="flex items-center gap-2">
+              <Input placeholder="From, e.g. 1:00:00" value={from} onChange={(e) => setFrom(e.target.value)} disabled={busy} />
+              <span className="text-muted-foreground">to</span>
+              <Input placeholder="To, e.g. 2:00:00" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} />
+            </div>
+            {rangeError && <p className="text-destructive text-xs">{rangeError}</p>}
+            <p className="text-muted-foreground text-xs">Only this section is downloaded. Videos over 3 hours need a range.</p>
+          </div>
           <div className="flex items-center gap-4">
-            <Button type="submit" disabled={busy || !url.trim()}>
+            <Button type="submit" disabled={busy || !url.trim() || !!rangeError}>
               {busy ? 'Analyzing…' : 'Analyze'}
             </Button>
             {busy && (

@@ -2,13 +2,14 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import type { Candidate } from '@/lib/api'
+import { fmtTime as fmt } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
-export const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 export function CandidateList({
   candidates,
   duration,
+  offset,
   selected,
   trims,
   onSelect,
@@ -16,6 +17,7 @@ export function CandidateList({
 }: {
   candidates: Candidate[]
   duration: number
+  offset: number
   selected: number | null
   trims: Record<number, [number, number]>
   onSelect: (i: number) => void
@@ -50,7 +52,7 @@ export function CandidateList({
                 <Badge variant="secondary">#{i + 1}</Badge>
                 <span className="font-medium">{c.title}</span>
                 <span className="text-muted-foreground ml-auto text-xs">
-                  {fmt(s)} – {fmt(e)} · {Math.round(e - s)}s · score {(c.score * 100).toFixed(0)}
+                  {fmt(s + offset)} – {fmt(e + offset)} · {Math.round(e - s)}s · score {(c.score * 100).toFixed(0)}
                 </span>
               </div>
               {c.hook && <p className="text-muted-foreground mt-1 text-sm">{c.hook}</p>}

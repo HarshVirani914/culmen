@@ -29,14 +29,16 @@ def run_analysis(job_id: str, store: JobStore, settings: Settings) -> None:
     try:
         job = store.get(job_id)
         store.update(job_id, status="downloading")
-        vi = download.download_video(job["url"], store.dir(job_id))
+        rs, re_ = job.get("range_start"), job.get("range_end")
+        vi = download.download_video(job["url"], store.dir(job_id), rs, re_)
+        offset = float(rs or 0)
         store.update(job_id, status="analyzing", video={
             "title": vi.title, "channel_id": vi.channel_id, "channel": vi.channel,
-            "width": vi.width, "height": vi.height, "duration": vi.duration,
+            "width": vi.width, "height": vi.height, "duration": vi.duration, "offset": offset,
             "path": str(vi.path)})
         parts = {
-            "heatmap": signals.heatmap_signal(vi.info, vi.duration),
-            "chat": signals.chat_rate(job["url"], vi.duration),
+            "heatmap": signals.heatmap_signal(vi.info, vi.duration, offset),
+            "chat": signals.chat_rate(job["url"], vi.duration, offset),
             "audio": signals.audio_energy(vi.path, vi.duration),
         }
         cands = find_candidates(signals.combine(parts), vi.duration)

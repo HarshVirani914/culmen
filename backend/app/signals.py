@@ -50,18 +50,20 @@ def audio_energy(video_path: Path, duration: float) -> np.ndarray:
     return out[:n]
 
 
-def _fetch_chat(url: str) -> list[tuple[float, str]]:
+def _fetch_chat(url: str, start: float | None = None, end: float | None = None) -> list[tuple[float, str]]:
     from chat_downloader import ChatDownloader
 
-    chat = ChatDownloader().get_chat(url, message_groups=["messages"])
+    chat = ChatDownloader().get_chat(url, start_time=start, end_time=end, message_groups=["messages"])
     return [(float(m["time_in_seconds"]), str(m.get("message", ""))) for m in chat
             if m.get("time_in_seconds") is not None]
 
 
-def chat_rate(url: str, duration: float) -> np.ndarray:
+def chat_rate(url: str, duration: float, offset: float = 0.0) -> np.ndarray:
+    """Chat spike score per second of the section [offset, offset + duration]."""
     n = math.ceil(duration)
     try:
-        msgs = _fetch_chat(url)
+        msgs = _fetch_chat(url, offset, offset + duration) if offset else _fetch_chat(url)
+        msgs = [(t - offset, text) for t, text in msgs]
     except Exception:
         return np.zeros(n)
     if not msgs:
@@ -78,11 +80,11 @@ def chat_rate(url: str, duration: float) -> np.ndarray:
     return normalize(_spike(counts))
 
 
-def heatmap_signal(info: dict, duration: float) -> np.ndarray:
+def heatmap_signal(info: dict, duration: float, offset: float = 0.0) -> np.ndarray:
     n = math.ceil(duration)
     out = np.zeros(n)
     for seg in info.get("heatmap") or []:
-        a, b = int(seg["start_time"]), math.ceil(seg["end_time"])
+        a, b = int(seg["start_time"] - offset), math.ceil(seg["end_time"] - offset)
         out[max(a, 0):min(b, n)] = seg["value"]
     return out
 

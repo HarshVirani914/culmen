@@ -55,7 +55,7 @@ def test_audio_energy_no_audio_stream_returns_zeros(tmp_path):
 
 
 def test_chat_rate_unavailable_returns_zeros(monkeypatch):
-    def boom(url):
+    def boom(url, s=None, e=None):
         raise RuntimeError("chat disabled")
     monkeypatch.setattr(signals, "_fetch_chat", boom)
     out = signals.chat_rate("http://x", 10)
@@ -64,6 +64,25 @@ def test_chat_rate_unavailable_returns_zeros(monkeypatch):
 
 def test_chat_rate_detects_spike(monkeypatch):
     msgs = [(float(t), "hi") for t in range(0, 60, 5)] + [(30.0 + i * 0.1, "LOL") for i in range(40)]
-    monkeypatch.setattr(signals, "_fetch_chat", lambda url: msgs)
+    monkeypatch.setattr(signals, "_fetch_chat", lambda url, s=None, e=None: msgs)
     out = signals.chat_rate("http://x", 60)
+    assert 29 <= int(np.argmax(out)) <= 34
+
+
+def test_heatmap_signal_offset_slices_section():
+    info = {"heatmap": [{"start_time": 100, "end_time": 110, "value": 1.0}]}
+    out = signals.heatmap_signal(info, 20, offset=95)
+    assert len(out) == 20
+    assert (out[5:15] == 1.0).all() and out[:5].sum() == 0 and out[15:].sum() == 0
+
+
+def test_chat_rate_offset_shifts_timestamps_and_requests_section(monkeypatch):
+    seen = {}
+
+    def fake(url, s=None, e=None):
+        seen["range"] = (s, e)
+        return [(1000.0 + 30 + i * 0.1, "LOL") for i in range(40)] + [(1000.0 + t, "hi") for t in range(0, 60, 5)]
+    monkeypatch.setattr(signals, "_fetch_chat", fake)
+    out = signals.chat_rate("http://x", 60, offset=1000)
+    assert seen["range"] == (1000, 1060)
     assert 29 <= int(np.argmax(out)) <= 34

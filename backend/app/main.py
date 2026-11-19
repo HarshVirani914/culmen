@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import ROOT, captions_available, ffmpeg_available, get_settings
-from .download import validate_url
+from .download import MAX_SECTION, validate_url
 from .jobs import JobStore, RenderStore
 from .layouts import LAYOUTS
 from .pipeline import run_analysis, run_render
@@ -22,6 +22,8 @@ def store() -> JobStore:
 class JobIn(BaseModel):
     url: str
     notes: str = ""
+    range_start: float | None = Field(default=None, ge=0)
+    range_end: float | None = Field(default=None, gt=0)
 
 
 class BoxIn(BaseModel):
@@ -58,8 +60,14 @@ def create_job(body: JobIn, bg: BackgroundTasks):
         url = validate_url(body.url)
     except ValueError as e:
         raise HTTPException(422, str(e))
+    rs, re_ = body.range_start, body.range_end
+    if rs is not None and re_ is not None:
+        if re_ <= rs:
+            raise HTTPException(422, "range end must be after range start")
+        if re_ - rs > MAX_SECTION:
+            raise HTTPException(422, f"time range too long (max {MAX_SECTION // 3600} h)")
     s = store()
-    jid = s.create(url, body.notes)
+    jid = s.create(url, body.notes, rs, re_)
     bg.add_task(run_analysis, jid, s, get_settings())
     return {"id": jid}
 

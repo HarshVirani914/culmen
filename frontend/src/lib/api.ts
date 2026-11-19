@@ -15,6 +15,7 @@ export type VideoMeta = {
   width: number
   height: number
   duration: number
+  offset: number
 }
 export type JobStatus = 'queued' | 'downloading' | 'analyzing' | 'ready' | 'error'
 export type Job = {
@@ -60,8 +61,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>
 }
 
-export const createJob = (url: string, notes: string) =>
-  req<{ id: string }>('/api/jobs', { method: 'POST', body: JSON.stringify({ url, notes }) })
+export const createJob = (url: string, notes: string, rangeStart?: number | null, rangeEnd?: number | null) =>
+  req<{ id: string }>('/api/jobs', {
+    method: 'POST',
+    body: JSON.stringify({ url, notes, range_start: rangeStart ?? null, range_end: rangeEnd ?? null }),
+  })
 export const getJob = (id: string) => req<Job>(`/api/jobs/${id}`)
 export const frameUrl = (id: string) => `/api/jobs/${id}/frame`
 export const getProfile = (channelId: string) =>

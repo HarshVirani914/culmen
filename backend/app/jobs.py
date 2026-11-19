@@ -17,11 +17,13 @@ class JobStore:
             return self.root / "_invalid"
         return self.root / job_id
 
-    def create(self, url: str, notes: str) -> str:
+    def create(self, url: str, notes: str, range_start: float | None = None,
+               range_end: float | None = None) -> str:
         jid = uuid.uuid4().hex[:12]
         self.dir(jid).mkdir(parents=True)
         self._write(jid, {"id": jid, "url": url, "notes": notes, "status": "queued",
-                          "error": None, "candidates": [], "video": None})
+                          "error": None, "candidates": [], "video": None,
+                          "range_start": range_start, "range_end": range_end})
         return jid
 
     def get(self, job_id: str) -> dict | None:

@@ -49,9 +49,9 @@ export default function App() {
     }
   }, [job?.status, job?.id])
 
-  const start = async (url: string, notes: string) => {
+  const start = async (url: string, notes: string, rs: number | null, re: number | null) => {
     try {
-      const { id } = await createJob(url, notes)
+      const { id } = await createJob(url, notes, rs, re)
       setJob({ id, url, status: 'queued', error: null, candidates: [], video: null })
       setSaved(false)
     } catch (e) {
@@ -100,6 +100,7 @@ export default function App() {
           <CandidateList
             candidates={job.candidates}
             duration={job.video.duration}
+            offset={job.video.offset ?? 0}
             selected={selected}
             trims={trims}
             onSelect={setSelected}

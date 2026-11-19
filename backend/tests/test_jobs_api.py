@@ -27,7 +27,7 @@ def test_create_job_returns_id_and_reaches_ready(client):
 
 
 def test_analysis_error_sets_error_status(client, monkeypatch):
-    def boom(u, d):
+    def boom(u, d, start=None, end=None):
         raise RuntimeError("video unavailable")
     monkeypatch.setattr(download, "download_video", boom)
     j = wait_ready(client, client.post("/api/jobs", json={"url": "https://youtu.be/x", "notes": ""}).json()["id"])
