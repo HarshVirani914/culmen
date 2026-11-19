@@ -54,7 +54,8 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
     from yt_dlp.utils import download_range_func
 
     dest_dir.mkdir(parents=True, exist_ok=True)
-    base = {"quiet": True, "noplaylist": True, "allowed_extractors": ["youtube", "youtube:tab"]}
+    base = {"quiet": True, "noplaylist": True, "allowed_extractors": ["youtube", "youtube:tab"],
+            "retries": 10, "fragment_retries": 10, "extractor_retries": 3, "socket_timeout": 30}
     with yt_dlp.YoutubeDL({**base, "skip_download": True}) as ydl:
         meta = ydl.extract_info(url, download=False)
     if meta.get("is_live"):

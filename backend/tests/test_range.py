@@ -142,3 +142,11 @@ def test_not_enough_disk_refused_before_download(monkeypatch, tmp_path):
     monkeypatch.setattr(download.shutil, "disk_usage", lambda p: Usage(10**12, 10**12 - 10**6, 10**6))
     with pytest.raises(RuntimeError, match="disk"):
         download.download_video("https://youtu.be/x", tmp_path, start=10, end=40)
+
+
+def test_download_is_configured_to_retry_on_network_timeouts(monkeypatch, tmp_path):
+    import yt_dlp
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(NativeYDL(opts), tmp_path))
+    download.download_video("https://youtu.be/x", tmp_path)
+    o = NativeYDL.seen["opts"]
+    assert o["retries"] >= 5 and o["fragment_retries"] >= 5 and 0 < o["socket_timeout"] <= 60
