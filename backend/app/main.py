@@ -81,6 +81,14 @@ def get_job(job_id: str):
     return job
 
 
+@app.get("/api/jobs/{job_id}/video")
+def get_job_video(job_id: str):
+    p = store().dir(job_id) / "video.mp4"
+    if not p.exists():
+        raise HTTPException(404, "video not ready")
+    return FileResponse(p, media_type="video/mp4")
+
+
 def _mark_used(job_id: str) -> None:
     """A moment the user opened or rendered is exempt from the live storage cap."""
     d = store().dir(job_id)

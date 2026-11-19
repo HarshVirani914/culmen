@@ -27,3 +27,4 @@ Live T4: complete (buffer+storage tests 9 passed). Ruling: enforce_cap(root, ids
 Live T5: complete (recorder tests 6 passed, real ffmpeg with local file as fake live source)
 Live T6: complete (live signals + chat parser tests 12 passed). Twitch IRC client, YouTube/Kick chat clients are best-effort and unverified until T10
 Live T7: complete (full pytest green incl. 7 live API tests with real recorder on a local source). Ruling: moments created via store.create + update (no create_ready helper); 'used' marker file exempts opened/rendered moments from the cap
+Live T8: complete (live API tests 11 passed incl. titles; LLM fallback never overwrites title)

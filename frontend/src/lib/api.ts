@@ -82,3 +82,23 @@ export const startRender = (jobId: string, r: RenderRequest) =>
 export const getRender = (id: string) => req<RenderState>(`/api/renders/${id}`)
 export const getHealth = () =>
   req<{ ok: boolean; ffmpeg: boolean; captions: boolean; llm: boolean }>('/api/health')
+
+export type LiveStatus = 'starting' | 'recording' | 'ended' | 'error' | 'stopped'
+export type LiveSnapshot = {
+  id: string
+  status: LiveStatus
+  started_at: number
+  url: string
+  title: string
+  buffer_seconds: number
+  disk_mb: number
+  signals: { chat: boolean; chat_source: boolean; audio: boolean }
+  recent_scores: number[]
+  moments: string[]
+  error: string | null
+}
+export const startLive = (url: string, notes: string) =>
+  req<{ id: string }>('/api/live', { method: 'POST', body: JSON.stringify({ url, notes }) })
+export const getLive = (id: string) => req<LiveSnapshot>(`/api/live/${id}`)
+export const stopLive = (id: string) => req<LiveSnapshot>(`/api/live/${id}/stop`, { method: 'POST' })
+export const jobVideoUrl = (id: string) => `/api/jobs/${id}/video`

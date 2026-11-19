@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { BoxPicker } from '@/components/BoxPicker'
 import { CandidateList } from '@/components/CandidateList'
+import { LivePanel } from '@/components/LivePanel'
 import { RenderPanel } from '@/components/RenderPanel'
 import { UrlForm } from '@/components/UrlForm'
 import { Toaster } from '@/components/ui/sonner'
+import { cn } from '@/lib/utils'
 import { createJob, frameUrl, getJob, getProfile, saveProfile, type Box, type Job } from '@/lib/api'
 
 const DEFAULT_GAME: Box = { x: 0, y: 0, w: 1, h: 1 }
 const DEFAULT_FACE: Box = { x: 0.75, y: 0.05, w: 0.22, h: 0.3 }
 
 export default function App() {
+  const [tab, setTab] = useState<'replay' | 'live'>('replay')
   const [job, setJob] = useState<Job | null>(null)
   const [game, setGame] = useState<Box>(DEFAULT_GAME)
   const [face, setFace] = useState<Box | null>(DEFAULT_FACE)
@@ -74,7 +77,33 @@ export default function App() {
         <h1 className="text-2xl font-semibold tracking-tight">Shorts Clipper</h1>
         <p className="text-muted-foreground text-sm">Turn stream highlights into vertical Shorts.</p>
       </header>
-      <UrlForm status={job?.status ?? null} progress={job?.progress} onSubmit={start} />
+      <div role="tablist" className="bg-muted inline-flex rounded-lg p-1">
+        {(['replay', 'live'] as const).map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={cn(
+              'rounded-md px-4 py-1.5 text-sm font-medium capitalize transition',
+              tab === t ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      <div className={cn(tab !== 'replay' && 'hidden')}>
+        <UrlForm status={job?.status ?? null} progress={job?.progress} onSubmit={start} />
+      </div>
+      <div className={cn(tab !== 'live' && 'hidden')}>
+        <LivePanel
+          onOpen={(j) => {
+            setJob(j)
+            setSaved(false)
+          }}
+        />
+      </div>
       {job?.status === 'ready' && job.video && (
         <>
           <BoxPicker

@@ -186,3 +186,11 @@ def test_llm_fallback_result_does_not_overwrite_live_title(live, monkeypatch, bu
     jid = first_moment(live, start(live).json()["id"])
     time.sleep(1.5)
     assert live.get(f"/api/jobs/{jid}").json()["candidates"][0]["title"].startswith("Live moment")
+
+
+def test_job_video_endpoint_serves_moment_preview(live, monkeypatch, burst_src):
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(burst_src))
+    jid = first_moment(live, start(live).json()["id"])
+    r = live.get(f"/api/jobs/{jid}/video")
+    assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and len(r.content) > 1000
+    assert live.get("/api/jobs/nope/video").status_code == 404
