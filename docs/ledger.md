@@ -20,3 +20,4 @@ Task 10: complete (backend pytest 78, vitest 5; real e2e on public video: analyz
 Final review: self-review (no fresh reviewer dispatched). Final: hardening — job/render ids validated (test passed before change too: defence in depth, no RED). Suite 82 backend + 5 frontend.
 Range feature: complete (backend 91 passed, vitest 8 passed). Guard: sections >3h refused before download (24h stream nearly downloaded whole)
 Real-stream test (IShowSpeed 24h live replay, range 2:00:00-2:30:00): ranged download returned empty file; works on normal video. Added clear error. Needs a normal-length replay to test LLM end to end.
+Live T1: complete (pytest 117 passed; also fixed youtu.be short links being blocked by extractor allowlist)

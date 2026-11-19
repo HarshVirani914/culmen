@@ -43,3 +43,18 @@ def test_render_with_ass_captions_and_spaces_in_path(src, tmp_path, layout):
     render_clip(src, out, 1, 4, layout, Box(0, 0, 0.7, 1), Box(0.75, 0.05, 0.2, 0.3), 1280, 720, ass)
     v = next(s for s in probe(out)["streams"] if s["codec_type"] == "video")
     assert (v["width"], v["height"]) == (1080, 1920)
+
+
+def test_render_uses_quality_preset(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from app import render
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return SimpleNamespace(returncode=0, stderr="")
+    monkeypatch.setattr(render.subprocess, "run", fake_run)
+    render.render_clip(tmp_path / "s.mp4", tmp_path / "o.mp4", 0, 5, "game_only", Box(0, 0, 1, 1), None, 1280, 720)
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("-preset") + 1] == "medium"
+    assert cmd[cmd.index("-crf") + 1] == "18"
