@@ -24,6 +24,7 @@ def download_video(url: str, dest_dir: Path) -> VideoInfo:
         "outtmpl": str(dest_dir / "video.%(ext)s"),
         "quiet": True,
         "noplaylist": True,
+        "allowed_extractors": ["youtube", "youtube:tab"],
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -43,3 +44,19 @@ def download_video(url: str, dest_dir: Path) -> VideoInfo:
         height=int(info.get("height") or 1080),
         info=info,
     )
+
+
+ALLOWED_HOSTS = ("youtube.com", "youtu.be")
+
+
+def validate_url(url: str) -> str:
+    """Only http(s) YouTube URLs are accepted (blocks SSRF via yt-dlp's generic extractor)."""
+    from urllib.parse import urlparse
+
+    p = urlparse(url.strip())
+    host = (p.hostname or "").rstrip(".").lower()
+    if p.scheme not in ("http", "https") or not host:
+        raise ValueError("URL must be http(s)")
+    if not any(host == h or host.endswith("." + h) for h in ALLOWED_HOSTS):
+        raise ValueError("Only YouTube URLs are supported")
+    return url.strip()

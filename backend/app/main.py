@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .config import ffmpeg_available, get_settings
+from .download import validate_url
 from .jobs import JobStore
 from .pipeline import run_analysis
 
@@ -25,8 +26,12 @@ def health():
 
 @app.post("/api/jobs")
 def create_job(body: JobIn, bg: BackgroundTasks):
+    try:
+        url = validate_url(body.url)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
     s = store()
-    jid = s.create(body.url, body.notes)
+    jid = s.create(url, body.notes)
     bg.add_task(run_analysis, jid, s, get_settings())
     return {"id": jid}
 
