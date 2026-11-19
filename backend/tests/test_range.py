@@ -81,7 +81,7 @@ def test_huge_section_refused(monkeypatch, tmp_path):
 class WritingYDL(FakeYDL):
     def extract_info(self, url, download=True):
         if not download:
-            return {"duration": 7200, "title": "t"}
+            return {"duration": 20000, "title": "t"}
         (self.dest / "video.mp4").write_bytes(b"x" * 300)
         return {"title": "t", "width": 1920, "height": 1080}
 
@@ -97,3 +97,48 @@ def test_empty_ranged_download_gives_clear_error(monkeypatch, tmp_path):
 def _with_dest(y, dest):
     y.dest = dest
     return y
+
+
+class NativeYDL(FakeYDL):
+    seen = {}
+
+    def extract_info(self, url, download=True):
+        if not download:
+            return {"duration": 7200, "title": "t", "is_live": False}
+        NativeYDL.seen["opts"] = self.opts
+        import subprocess
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=d=60:s=320x180:r=10",
+                        "-f", "lavfi", "-i", "sine=d=60", "-shortest", "-pix_fmt", "yuv420p",
+                        "-g", "10", str(self.dest / "video.mp4")], check=True)
+        return {"title": "t", "width": 320, "height": 180, "duration": 7200}
+
+
+def test_normal_length_video_downloads_natively_then_cuts_section_locally(monkeypatch, tmp_path):
+    import yt_dlp
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(NativeYDL(opts), tmp_path))
+    v = download.download_video("https://youtu.be/x", tmp_path, start=10, end=40)
+    assert "download_ranges" not in NativeYDL.seen["opts"]  # fast native path, no ffmpeg downloader
+    assert abs(download._probe_duration(v.path) - 30) < 3
+    assert v.duration == 30
+    assert [p.name for p in tmp_path.iterdir() if p.suffix == ".mp4"] == ["video.mp4"]  # full file removed
+
+
+def test_live_stream_refused(monkeypatch, tmp_path):
+    import yt_dlp
+
+    class LiveYDL(FakeYDL):
+        def extract_info(self, url, download=True):
+            return {"duration": None, "is_live": True}
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", LiveYDL)
+    with pytest.raises(ValueError, match="live"):
+        download.download_video("https://youtu.be/x", tmp_path)
+
+
+def test_not_enough_disk_refused_before_download(monkeypatch, tmp_path):
+    import collections
+    import yt_dlp
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(NativeYDL(opts), tmp_path))
+    Usage = collections.namedtuple("Usage", "total used free")
+    monkeypatch.setattr(download.shutil, "disk_usage", lambda p: Usage(10**12, 10**12 - 10**6, 10**6))
+    with pytest.raises(RuntimeError, match="disk"):
+        download.download_video("https://youtu.be/x", tmp_path, start=10, end=40)
