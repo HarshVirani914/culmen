@@ -194,3 +194,29 @@ def test_job_video_endpoint_serves_moment_preview(live, monkeypatch, burst_src):
     r = live.get(f"/api/jobs/{jid}/video")
     assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and len(r.content) > 1000
     assert live.get("/api/jobs/nope/video").status_code == 404
+
+
+def test_stop_ends_chat_thread_cleanly(live, monkeypatch, long_src):
+    import asyncio
+    from app.live.chat_live import ChatSource
+
+    class Forever(ChatSource):
+        async def run(self, on_message):
+            try:
+                while not self._closed:
+                    on_message("u1", "hi")
+                    await asyncio.sleep(0.2)
+                    await asyncio.sleep(1000)
+            finally:
+                Forever.cleaned = True
+    Forever.cleaned = False
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(long_src))
+    monkeypatch.setattr(live_session, "default_chat_source", lambda url: Forever())
+    monkeypatch.setattr(live_session, "REALTIME", True)
+    sid = start(live).json()["id"]
+    time.sleep(1.5)
+    s = live_session.get_manager().get(sid)
+    assert s._chat_thread.is_alive()
+    live.post(f"/api/live/{sid}/stop")
+    assert wait_for(lambda: not s._chat_thread.is_alive(), 5), "chat thread kept running after stop"
+    assert Forever.cleaned  # the chat coroutine was cancelled and its cleanup ran

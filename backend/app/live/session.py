@@ -83,11 +83,15 @@ class LiveSession:
         return self.info.urls
 
     def _run_chat(self) -> None:
+        loop = asyncio.new_event_loop()
+        self._chat_loop = loop
+        self._chat_task = loop.create_task(self._chat.run(self._on_chat))
         try:
-            self._chat_loop = asyncio.new_event_loop()
-            self._chat_loop.run_until_complete(self._chat.run(self._on_chat))
-        except Exception:
+            loop.run_until_complete(self._chat_task)
+        except (asyncio.CancelledError, Exception):
             pass
+        finally:
+            loop.close()
 
     def stop(self) -> None:
         if self._stopped:
@@ -97,8 +101,11 @@ class LiveSession:
             self.recorder.stop()
         if self._chat:
             self._chat.close()
-            if self._chat_loop and self._chat_loop.is_running():
-                self._chat_loop.call_soon_threadsafe(self._chat_loop.stop)
+            loop, task = self._chat_loop, getattr(self, "_chat_task", None)
+            if loop and task and loop.is_running():
+                loop.call_soon_threadsafe(task.cancel)  # lets the client close its connections cleanly
+            if self._chat_thread:
+                self._chat_thread.join(timeout=5)
         self._title_q.put(None)
         shutil.rmtree(self.dir, ignore_errors=True)
 

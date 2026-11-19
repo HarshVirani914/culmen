@@ -42,3 +42,31 @@ def test_chat_source_for_hosts():
     assert chat_source_for("https://www.youtube.com/watch?v=abc") is not None
     assert chat_source_for("https://kick.com/somechannel") is not None
     assert chat_source_for("https://example.com/x") is None
+
+
+def _page(menu=True, key=True):
+    import json as _j
+    data = {"contents": {"liveChatRenderer": {"header": {"liveChatHeaderRenderer": {"viewSelector": {
+        "sortFilterSubMenuRenderer": {"subMenuItems": [
+            {"title": "Top Chat", "selected": True, "continuation": {"reloadContinuationData": {"continuation": "TOPCONT"}}},
+            {"title": "Live-Chat", "selected": False, "continuation": {"reloadContinuationData": {"continuation": "LIVECONT"}}},
+        ]}}}}}}} if menu else {}
+    head = '"INNERTUBE_API_KEY":"KEY123","INNERTUBE_CLIENT_VERSION":"2.2026.01.01",' if key else ""
+    return f'<html><script>{head}</script><script>window["ytInitialData"] = {_j.dumps(data)};</script>"continuation":"FALLBACK"</html>'
+
+
+def test_youtube_bootstrap_prefers_live_chat_continuation():
+    from app.live.chat_live import extract_youtube_bootstrap
+    assert extract_youtube_bootstrap(_page()) == ("KEY123", "2.2026.01.01", "LIVECONT")
+
+
+def test_youtube_bootstrap_falls_back_to_first_continuation():
+    from app.live.chat_live import extract_youtube_bootstrap
+    assert extract_youtube_bootstrap(_page(menu=False)) == ("KEY123", "2.2026.01.01", "FALLBACK")
+
+
+def test_youtube_bootstrap_raises_on_stub_page():
+    import pytest
+    from app.live.chat_live import extract_youtube_bootstrap
+    with pytest.raises(ValueError):
+        extract_youtube_bootstrap("<html>blocked</html>")

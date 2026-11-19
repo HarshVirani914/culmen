@@ -42,6 +42,35 @@ def parse_youtube_live_chat(obj: dict) -> list[tuple[str, str]]:
     return out
 
 
+BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/124.0 Safari/537.36")  # a bare "Mozilla/5.0" gets a stub page without chat data
+
+
+def extract_youtube_bootstrap(html: str) -> tuple[str, str, str]:
+    """(api key, client version, continuation token) from YouTube's live chat page."""
+    key = re.search(r'"INNERTUBE_API_KEY":"([^"]+)"', html)
+    ver = re.search(r'"INNERTUBE_CLIENT_VERSION":"([^"]+)"', html)
+    if not key:
+        raise ValueError("YouTube did not return the live chat page (blocked or not a live chat)")
+    cont = None
+    m = re.search(r'(?:window\["ytInitialData"\]|var ytInitialData)\s*=\s*(\{.*?\});\s*</script>', html, re.S)
+    if m:
+        try:
+            lcr = json.loads(m.group(1))["contents"]["liveChatRenderer"]
+            subs = lcr["header"]["liveChatHeaderRenderer"]["viewSelector"]["sortFilterSubMenuRenderer"]["subMenuItems"]
+            for item in subs:
+                if "live" in item.get("title", "").lower():
+                    cont = item["continuation"]["reloadContinuationData"]["continuation"]
+        except (ValueError, KeyError, TypeError):
+            cont = None
+    if not cont:
+        first = re.search(r'"continuation":"([^"]+)"', html)
+        if not first:
+            raise ValueError("no chat continuation found")
+        cont = first.group(1)
+    return key.group(1), ver.group(1) if ver else "2.20240101.00.00", cont
+
+
 class ChatSource:
     def __init__(self) -> None:
         self._closed = False
@@ -84,30 +113,28 @@ class TwitchChat(ChatSource):
 class YouTubeChat(ChatSource):
     def __init__(self, url: str):
         super().__init__()
-        q = urlparse(url)
         m = re.search(r"[?&]v=([\w-]{11})", url) or re.search(r"/(?:live|shorts)/([\w-]{11})", url) \
             or re.search(r"youtu\.be/([\w-]{11})", url)
-        self.video_id = m.group(1) if m else q.path.strip("/")
+        self.video_id = m.group(1) if m else urlparse(url).path.strip("/")
 
     async def run(self, on_message):  # pragma: no cover - network
         import httpx
 
-        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Mozilla/5.0"}) as c:
+        async with httpx.AsyncClient(timeout=20, headers={"User-Agent": BROWSER_UA}, follow_redirects=True) as c:
             while not self._closed:
                 try:
-                    page = (await c.get(f"https://www.youtube.com/live_chat?v={self.video_id}")).text
-                    key = re.search(r'"INNERTUBE_API_KEY":"([^"]+)"', page).group(1)
-                    cont = re.search(r'"continuation":"([^"]+)"', page).group(1)
+                    page = (await c.get(f"https://www.youtube.com/live_chat?is_popout=1&v={self.video_id}")).text
+                    key, ver, cont = extract_youtube_bootstrap(page)
                     while not self._closed and cont:
                         r = await c.post(
                             f"https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?key={key}",
-                            json={"context": {"client": {"clientName": "WEB", "clientVersion": "2.20240101.00.00"}},
+                            json={"context": {"client": {"clientName": "WEB", "clientVersion": ver}},
                                   "continuation": cont})
                         obj = r.json()
                         for msg in parse_youtube_live_chat(obj):
                             on_message(*msg)
-                        conts = obj["continuationContents"]["liveChatContinuation"]["continuations"][0]
-                        d = conts.get("invalidationContinuationData") or conts.get("timedContinuationData")
+                        nxt = obj["continuationContents"]["liveChatContinuation"]["continuations"][0]
+                        d = nxt.get("invalidationContinuationData") or nxt.get("timedContinuationData")
                         cont = d["continuation"]
                         await asyncio.sleep(min(max(d.get("timeoutMs", 3000), 1000), 8000) / 1000)
                 except Exception:
@@ -128,7 +155,7 @@ class KickChat(ChatSource):
 
         while not self._closed:
             try:
-                async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Mozilla/5.0"}) as c:
+                async with httpx.AsyncClient(timeout=20, headers={"User-Agent": BROWSER_UA}) as c:
                     room = (await c.get(f"https://kick.com/api/v2/channels/{self.slug}")).json()["chatroom"]["id"]
                 async with websockets.connect(self.PUSHER) as ws:
                     await ws.send(json.dumps({"event": "pusher:subscribe",
