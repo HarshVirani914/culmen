@@ -6,3 +6,4 @@ Task 1: complete (cd backend && uv run pytest → 1 passed; pytest pythonpath fi
 Task 2: complete (uv run pytest tests/test_candidates.py → 6 passed)
 Task 3: complete (uv run pytest tests/test_signals.py → 9 passed; chat fetch named _fetch_chat not _fetch_chat_times)
 Task 4: complete (uv run pytest tests/test_layouts.py tests/test_render.py → 19 passed, real ffmpeg 1080x1920 h264 for all 4 layouts)
+Task 5: complete (uv run pytest → 40 passed)
