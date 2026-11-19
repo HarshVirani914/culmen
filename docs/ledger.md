@@ -14,3 +14,5 @@ Task 7: complete (uv run pytest → 67 passed; ruling: GET missing profile retur
 Task 8: complete (npm run build OK; ruling: removed tsconfig baseUrl, TS7 dropped it)
 Task 9: complete (vitest 5 passed, npm run build OK; no browser check yet, done in T10)
 Task 10 (partial): serve + run.sh + README committed, pytest 71 passed; e2e pending
+Ruling: ffmpeg picked via FFMPEG_BIN or first build with libass (ffmpeg-full is installed, keg-only) — default brew ffmpeg lacks the ass filter — captions/credit return 422 and UI disables them if none found
+Found by e2e: ass filter missing in default ffmpeg; fixed with real-render tests (77 backend tests passing)
