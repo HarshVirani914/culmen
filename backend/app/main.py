@@ -18,7 +18,7 @@ from .live.session import get_manager
 from .pipeline import run_analysis, run_render
 from .profiles import ProfileStore
 
-app = FastAPI(title="Shorts Clipper")
+app = FastAPI(title="Culmen")
 
 
 def store() -> JobStore:

@@ -1,4 +1,4 @@
-# Stream-to-Shorts Clipper: Design
+# Culmen: Stream-to-Shorts Design
 
 ## Intent
 The user is starting a YouTube Shorts channel built from key moments of other creators' gaming live streams. They need to get from a stream link to ready-to-upload 9:16 clips quickly, with the most reacted-to moments found automatically. Speed to a working version matters more than polish.

@@ -83,9 +83,12 @@ export default function App() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Shorts Clipper</h1>
-        <p className="text-muted-foreground text-sm">Turn stream highlights into vertical Shorts.</p>
+      <header className="flex items-center gap-3">
+        <img src="/favicon.svg" alt="" className="size-10 rounded-xl" />
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Culmen</h1>
+          <p className="text-muted-foreground text-sm">Peak moments, cut vertical.</p>
+        </div>
       </header>
       <div role="tablist" className="bg-muted inline-flex rounded-lg p-1">
         {(['replay', 'live', 'library'] as const).map((t) => (
