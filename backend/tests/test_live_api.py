@@ -121,3 +121,68 @@ def test_enforce_cap_keeps_used_and_newest(tmp_path):
     deleted = s._enforce_cap()
     assert set(deleted) == {ids[0], ids[2]}
     assert store.dir(ids[1]).exists() and store.dir(ids[3]).exists()
+
+
+@pytest.fixture(scope="module")
+def two_burst_src(tmp_path_factory):
+    return make_source(tmp_path_factory.mktemp("lv3") / "two.mp4", 200, bursts=(60, 130))
+
+
+def enable_llm(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "http://x/v1")
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.setenv("LLM_MODEL", "m")
+
+
+def first_moment(client, sid):
+    return wait_for(lambda: (lambda s: s["moments"][0] if s["moments"] else None)(client.get(f"/api/live/{sid}").json()))
+
+
+def test_moment_gets_llm_title_and_hook(live, monkeypatch, burst_src):
+    from app import llm, transcribe
+    enable_llm(monkeypatch)
+    monkeypatch.setattr(transcribe, "transcribe_text", lambda p, s, e: "he clutched it")
+    monkeypatch.setattr(llm, "rank_candidates", lambda c, t, n, s: [llm.RankedCandidate(x, "Insane clutch", "wait for it", 9.0) for x in c])
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(burst_src))
+    jid = first_moment(live, start(live).json()["id"])
+    assert jid
+    got = wait_for(lambda: (lambda c: c if c["title"] == "Insane clutch" else None)(
+        live.get(f"/api/jobs/{jid}").json()["candidates"][0]))
+    assert got and got["hook"] == "wait for it"
+
+
+def test_titling_failure_keeps_generic_title(live, monkeypatch, burst_src):
+    from app import llm, transcribe
+    enable_llm(monkeypatch)
+    monkeypatch.setattr(transcribe, "transcribe_text", lambda p, s, e: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(burst_src))
+    jid = first_moment(live, start(live).json()["id"])
+    time.sleep(1.0)
+    assert live.get(f"/api/jobs/{jid}").json()["candidates"][0]["title"].startswith("Live moment")
+
+
+def test_titling_does_not_block_new_moments(live, monkeypatch, two_burst_src):
+    import threading
+    from app import llm, transcribe
+    enable_llm(monkeypatch)
+    gate = threading.Event()
+    monkeypatch.setattr(transcribe, "transcribe_text", lambda p, s, e: (gate.wait(30), "x")[1])
+    monkeypatch.setattr(llm, "rank_candidates", lambda c, t, n, s: [llm.RankedCandidate(x, "T", "", 5.0) for x in c])
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(two_burst_src))
+    sid = start(live).json()["id"]
+    try:
+        two = wait_for(lambda: (lambda s: s if len(s["moments"]) >= 2 else None)(live.get(f"/api/live/{sid}").json()), 30)
+        assert two, "second moment was blocked by slow titling"
+    finally:
+        gate.set()
+
+
+def test_llm_fallback_result_does_not_overwrite_live_title(live, monkeypatch, burst_src):
+    from app import llm, transcribe
+    enable_llm(monkeypatch)
+    monkeypatch.setattr(transcribe, "transcribe_text", lambda p, s, e: "x")
+    monkeypatch.setattr(llm, "rank_candidates", lambda c, t, n, s: [llm.RankedCandidate(x, "Moment 1", "", None) for x in c])
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(burst_src))
+    jid = first_moment(live, start(live).json()["id"])
+    time.sleep(1.5)
+    assert live.get(f"/api/jobs/{jid}").json()["candidates"][0]["title"].startswith("Live moment")

@@ -1,10 +1,13 @@
 import asyncio
+import queue
 import shutil
 import subprocess
 import threading
 import time
 from pathlib import Path
 
+from .. import llm, transcribe
+from ..candidates import Candidate
 from ..config import Settings, ffmpeg_bin
 from ..download import _probe_duration
 from ..jobs import JobStore
@@ -54,6 +57,8 @@ class LiveSession:
         self.detector = LiveDetector()
         self.tracker = ScoreTracker()
         self.recorder: Recorder | None = None
+        self._title_q: queue.Queue = queue.Queue()
+        self._title_thread: threading.Thread | None = None
 
     # ---- lifecycle
     def start(self) -> None:
@@ -65,6 +70,9 @@ class LiveSession:
         if self._chat:
             self._chat_thread = threading.Thread(target=self._run_chat, daemon=True)
             self._chat_thread.start()
+        if self.settings.llm_enabled:
+            self._title_thread = threading.Thread(target=self._title_worker, daemon=True)
+            self._title_thread.start()
         self.recorder.start()
 
     def _source(self) -> list[str]:
@@ -91,6 +99,7 @@ class LiveSession:
             self._chat.close()
             if self._chat_loop and self._chat_loop.is_running():
                 self._chat_loop.call_soon_threadsafe(self._chat_loop.stop)
+        self._title_q.put(None)
         shutil.rmtree(self.dir, ignore_errors=True)
 
     @property
@@ -152,6 +161,7 @@ class LiveSession:
                 candidates=[{"start": 0.0, "end": dur, "score": w.score, "title": f"Live moment {self._n}",
                              "hook": "", "llm_score": None}])
             self.moments.append(jid)
+            self._title_q.put((jid, dur, w.score))
         finally:
             release()
         self._enforce_cap()
@@ -164,6 +174,31 @@ class LiveSession:
         deleted = storage.enforce_cap(self.store.root, ids, int(self.settings.live_cap_gb * 1e9), keep)
         self.moments = [i for i in ids if i not in deleted]
         return deleted
+
+    def _title_worker(self) -> None:
+        """Adds an LLM title and hook to each moment without blocking the recorder."""
+        while True:
+            item = self._title_q.get()
+            if item is None:
+                return
+            jid, dur, score = item
+            try:
+                job = self.store.get(jid)
+                if job is None:  # deleted by the storage cap
+                    continue
+                text = transcribe.transcribe_text(Path(job["video"]["path"]), 0, dur)
+                cand = Candidate(0.0, dur, score)
+                ranked = llm.rank_candidates([cand], {0: text}, self.notes, self.settings)[0]
+                if ranked.llm_score is None:  # the LLM failed; keep the generic title
+                    continue
+                job = self.store.get(jid)
+                if job is None:
+                    continue
+                c = dict(job["candidates"][0])
+                c.update(title=ranked.title, hook=ranked.hook, llm_score=ranked.llm_score)
+                self.store.update(jid, candidates=[c])
+            except Exception:  # noqa: BLE001 - keep the generic title
+                continue
 
     # ---- status
     def _disk_mb(self) -> float:
