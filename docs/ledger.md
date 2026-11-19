@@ -4,3 +4,4 @@ Ruling: project root is shorts-clipper/ (no extra clipper/ dir) — user's folde
 Ruling: uv project (pyproject.toml) instead of requirements.txt — environment enforces uv — none
 Task 1: complete (cd backend && uv run pytest → 1 passed; pytest pythonpath fix added)
 Task 2: complete (uv run pytest tests/test_candidates.py → 6 passed)
+Task 3: complete (uv run pytest tests/test_signals.py → 9 passed; chat fetch named _fetch_chat not _fetch_chat_times)
