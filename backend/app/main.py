@@ -9,6 +9,7 @@ from .config import ROOT, captions_available, ffmpeg_available, get_settings
 from .download import MAX_SECTION, validate_url
 from .jobs import JobStore, RenderStore
 from .layouts import LAYOUTS
+from .live.session import get_manager
 from .pipeline import run_analysis, run_render
 from .profiles import ProfileStore
 
@@ -80,12 +81,59 @@ def get_job(job_id: str):
     return job
 
 
+def _mark_used(job_id: str) -> None:
+    """A moment the user opened or rendered is exempt from the live storage cap."""
+    d = store().dir(job_id)
+    if d.exists():
+        (d / "used").write_text("1")
+
+
 @app.get("/api/jobs/{job_id}/frame")
 def get_frame(job_id: str):
     p = store().dir(job_id) / "frame.jpg"
     if not p.exists():
         raise HTTPException(404, "frame not ready")
+    _mark_used(job_id)
     return FileResponse(p, media_type="image/jpeg")
+
+
+class LiveIn(BaseModel):
+    url: str
+    notes: str = ""
+
+
+@app.post("/api/live")
+def start_live(body: LiveIn):
+    try:
+        url = validate_url(body.url)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    try:
+        session = get_manager().start(url, body.notes, get_settings(), store())
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"could not open the stream: {e}")
+    return {"id": session.id}
+
+
+@app.get("/api/live/{session_id}")
+def get_live(session_id: str):
+    s = get_manager().get(session_id)
+    if s is None:
+        raise HTTPException(404, "live session not found")
+    return s.snapshot()
+
+
+@app.post("/api/live/{session_id}/stop")
+def stop_live(session_id: str):
+    s = get_manager().get(session_id)
+    if s is None:
+        raise HTTPException(404, "live session not found")
+    s.stop()
+    return s.snapshot()
 
 
 @app.get("/api/profiles/{channel_id}")
@@ -118,6 +166,7 @@ def start_render(job_id: str, body: RenderIn, bg: BackgroundTasks):
         raise HTTPException(422, "captions and credit line need an ffmpeg built with libass (brew install ffmpeg-full)")
     if body.end - body.start > 90:
         raise HTTPException(422, "clip too long (max 90 s)")
+    _mark_used(job_id)
     rs = RenderStore(get_settings().data_dir)
     rid = rs.create(job_id)
     bg.add_task(run_render, rid, rs, js, job_id, body.model_dump())

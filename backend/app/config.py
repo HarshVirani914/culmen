@@ -13,6 +13,9 @@ class Settings:
     llm_api_key: str | None
     llm_model: str | None
     data_dir: Path
+    live_buffer_seconds: float = 720.0
+    live_cap_gb: float = 3.0
+    live_auto_render: bool = False
 
     @property
     def llm_enabled(self) -> bool:
@@ -27,6 +30,9 @@ def get_settings() -> Settings:
         llm_api_key=os.environ.get("LLM_API_KEY") or None,
         llm_model=os.environ.get("LLM_MODEL") or None,
         data_dir=data_dir,
+        live_buffer_seconds=float(os.environ.get("CLIPPER_LIVE_BUFFER_SECONDS", 720)),
+        live_cap_gb=float(os.environ.get("CLIPPER_LIVE_CAP_GB", 3)),
+        live_auto_render=os.environ.get("CLIPPER_LIVE_AUTO_RENDER", "0") == "1",
     )
 
 

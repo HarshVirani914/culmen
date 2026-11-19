@@ -1,5 +1,6 @@
 import re
 import subprocess
+from dataclasses import dataclass
 import threading
 import time
 from pathlib import Path
@@ -14,8 +15,18 @@ STREAM_FORMAT = "b[height<=1080]/bv*[height<=1080]+ba/b"
 _NAME = re.compile(r"^(\d{6})\.ts$")
 
 
-def resolve_stream_url(url: str) -> list[str]:
-    """Direct stream URL(s) (video, plus a separate audio URL when needed) of a live stream."""
+@dataclass
+class StreamInfo:
+    urls: list[str]
+    title: str = ""
+    channel_id: str = "unknown"
+    channel: str = ""
+    width: int = 0
+    height: int = 0
+
+
+def resolve_stream(url: str) -> StreamInfo:
+    """Direct stream URL(s) (video, plus a separate audio URL when needed) and metadata of a live stream."""
     import yt_dlp
 
     opts = {"quiet": True, "noplaylist": True, "format": STREAM_FORMAT, "allowed_extractors": ALLOWED_EXTRACTORS}
@@ -23,9 +34,13 @@ def resolve_stream_url(url: str) -> list[str]:
         info = ydl.extract_info(url, download=False)
     if not info.get("is_live"):
         raise ValueError("This stream is not live right now.")
-    if info.get("requested_formats"):
-        return [f["url"] for f in info["requested_formats"]]
-    return [info["url"]]
+    urls = [f["url"] for f in info["requested_formats"]] if info.get("requested_formats") else [info["url"]]
+    title = info.get("title") or ""
+    if "(live)" in title.lower() and info.get("description"):  # Twitch puts the real title in the description
+        title = info["description"].splitlines()[0][:120]
+    return StreamInfo(urls, title, info.get("channel_id") or info.get("uploader_id") or "unknown",
+                      info.get("channel") or info.get("uploader") or "", int(info.get("width") or 0),
+                      int(info.get("height") or 0))
 
 
 def next_start_number(d: Path) -> int:
