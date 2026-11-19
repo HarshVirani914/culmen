@@ -80,6 +80,7 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
         **base,
         "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
         "merge_output_format": "mp4",
+        "concurrent_fragment_downloads": 32,
         "outtmpl": str(dest_dir / "video.%(ext)s"),
     }
     if ranged and not native:

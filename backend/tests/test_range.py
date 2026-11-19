@@ -150,3 +150,4 @@ def test_download_is_configured_to_retry_on_network_timeouts(monkeypatch, tmp_pa
     download.download_video("https://youtu.be/x", tmp_path)
     o = NativeYDL.seen["opts"]
     assert o["retries"] >= 5 and o["fragment_retries"] >= 5 and 0 < o["socket_timeout"] <= 60
+    assert o["concurrent_fragment_downloads"] >= 16  # live-stream replays are thousands of throttled fragments
