@@ -10,3 +10,4 @@ Task 5: complete (uv run pytest → 40 passed)
 Task 6: complete (uv run pytest tests/test_captions.py tests/test_llm.py → 6 passed; transcribe.py not unit-tested, needs whisper model, covered in T10 e2e)
 Ruling: restrict URLs to youtube.com/youtu.be + yt-dlp allowed_extractors youtube — security review flagged SSRF via generic extractor — non-YouTube sources (e.g. Twitch) rejected until allowlist extended
 Security fix: complete (uv run pytest → 58 passed)
+Task 7: complete (uv run pytest → 67 passed; ruling: GET missing profile returns 200 null not 404 — avoids console 404 noise in UI)
