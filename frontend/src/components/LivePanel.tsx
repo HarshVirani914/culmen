@@ -6,11 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { getJob, getLive, jobVideoUrl, startLive, stopLive, type Job, type LiveSnapshot } from '@/lib/api'
+import { getJob, getLive, jobVideoUrl, startLive, stopLive, type Job, type LiveSnapshot, type Sensitivity } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { sparklinePoints } from '@/lib/live'
 import { fmtTime } from '@/lib/time'
 
 const RUNNING = ['starting', 'recording']
+const SENSITIVITY: { value: Sensitivity; label: string; hint: string }[] = [
+  { value: 'low', label: 'Low', hint: 'Only big, obvious reactions. Fewer moments, fewer misses of quality.' },
+  { value: 'normal', label: 'Normal', hint: 'Balanced.' },
+  { value: 'high', label: 'High', hint: 'Milder spikes count too. More moments, more that are only okay. Good for streams that are loud all the time.' },
+]
 
 export function LivePanel({ onOpen }: { onOpen: (job: Job) => void }) {
   const [url, setUrl] = useState('')
@@ -19,6 +25,7 @@ export function LivePanel({ onOpen }: { onOpen: (job: Job) => void }) {
   const [snap, setSnap] = useState<LiveSnapshot | null>(null)
   const [jobs, setJobs] = useState<Record<string, Job>>({})
   const [busy, setBusy] = useState(false)
+  const [sensitivity, setSensitivity] = useState<Sensitivity>('normal')
 
   useEffect(() => {
     if (!sid) return
@@ -60,7 +67,7 @@ export function LivePanel({ onOpen }: { onOpen: (job: Job) => void }) {
   const start = async () => {
     setBusy(true)
     try {
-      const { id } = await startLive(url.trim(), notes.trim())
+      const { id } = await startLive(url.trim(), notes.trim(), sensitivity)
       setSid(id)
       setSnap(null)
       setJobs({})
@@ -108,6 +115,27 @@ export function LivePanel({ onOpen }: { onOpen: (job: Job) => void }) {
                 <Label htmlFor="live-notes">What to focus on (optional)</Label>
                 <Textarea id="live-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. clutch plays, rage moments" />
               </div>
+              <div className="grid gap-2">
+                <Label>Sensitivity</Label>
+                <div role="radiogroup" aria-label="Sensitivity" className="bg-muted inline-flex w-fit rounded-lg p-1">
+                  {SENSITIVITY.map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={sensitivity === o.value}
+                      onClick={() => setSensitivity(o.value)}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-sm font-medium transition',
+                        sensitivity === o.value ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-muted-foreground text-xs">{SENSITIVITY.find((o) => o.value === sensitivity)?.hint}</p>
+              </div>
               <div>
                 <Button type="submit" disabled={busy || !url.trim()}>
                   {busy ? 'Connecting…' : 'Start live session'}
@@ -119,6 +147,7 @@ export function LivePanel({ onOpen }: { onOpen: (job: Job) => void }) {
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge variant={running ? 'default' : 'secondary'}>{snap.status}</Badge>
+                <Badge variant="outline">{snap.sensitivity} sensitivity</Badge>
                 <span className="text-sm font-medium">{snap.title || snap.url}</span>
                 <span className="text-muted-foreground ml-auto text-xs">
                   buffer {fmtTime(snap.buffer_seconds)} · disk {snap.disk_mb} MB · {snap.moments.length} moments

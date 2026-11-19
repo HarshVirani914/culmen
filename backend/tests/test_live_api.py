@@ -220,3 +220,15 @@ def test_stop_ends_chat_thread_cleanly(live, monkeypatch, long_src):
     live.post(f"/api/live/{sid}/stop")
     assert wait_for(lambda: not s._chat_thread.is_alive(), 5), "chat thread kept running after stop"
     assert Forever.cleaned  # the chat coroutine was cancelled and its cleanup ran
+
+
+def test_sensitivity_is_accepted_and_validated(live, monkeypatch, long_src):
+    monkeypatch.setattr(live_session, "default_resolver", fake_resolver(long_src))
+    monkeypatch.setattr(live_session, "REALTIME", True)
+    r = live.post("/api/live", json={"url": "https://www.twitch.tv/test", "notes": "", "sensitivity": "high"})
+    assert r.status_code == 200
+    assert live.get(f"/api/live/{r.json()['id']}").json()["sensitivity"] == "high"
+    live.post(f"/api/live/{r.json()['id']}/stop")
+    live_session.get_manager().reset()
+    bad = live.post("/api/live", json={"url": "https://www.twitch.tv/test", "notes": "", "sensitivity": "extreme"})
+    assert bad.status_code == 422

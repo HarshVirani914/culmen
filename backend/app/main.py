@@ -1,5 +1,6 @@
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pathlib import Path
+from typing import Literal
 
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -114,6 +115,7 @@ def get_frame(job_id: str):
 class LiveIn(BaseModel):
     url: str
     notes: str = ""
+    sensitivity: Literal["low", "normal", "high"] = "normal"
 
 
 @app.post("/api/live")
@@ -123,7 +125,7 @@ def start_live(body: LiveIn):
     except ValueError as e:
         raise HTTPException(422, str(e))
     try:
-        session = get_manager().start(url, body.notes, get_settings(), store())
+        session = get_manager().start(url, body.notes, get_settings(), store(), body.sensitivity)
     except RuntimeError as e:
         raise HTTPException(409, str(e))
     except ValueError as e:

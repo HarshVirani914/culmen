@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import ffmpeg_bin
+from .cookies import ytdlp_auth_opts
 
 
 # yt-dlp extractor names (regexes) we allow; the generic extractor is deliberately excluded.
@@ -63,7 +64,8 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     base = {"quiet": True, "noplaylist": True, "allowed_extractors": ALLOWED_EXTRACTORS,
-            "retries": 10, "fragment_retries": 10, "extractor_retries": 3, "socket_timeout": 30}
+            "retries": 10, "fragment_retries": 10, "extractor_retries": 3, "socket_timeout": 30,
+            **ytdlp_auth_opts()}
     with yt_dlp.YoutubeDL({**base, "skip_download": True}) as ydl:
         meta = ydl.extract_info(url, download=False)
     if meta.get("is_live"):
@@ -74,6 +76,11 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
     sec_end = min(float(end), total) if (end is not None and total) else (float(end) if end is not None else total)
     length = sec_end - sec_start
     native = total <= NATIVE_MAX
+    if ranged and not native and meta.get("live_status") == "post_live":
+        raise ValueError(
+            "YouTube is still processing this stream replay, and a time range can't be cut from a replay "
+            "in that state (it usually takes a few hours after the stream ends). Try again later, or use a "
+            "replay that is already processed.")
     if not native and length > MAX_SECTION:
         raise ValueError(
             f"This video is {total / 3600:.1f} h long. Set a time range (range start/end) of at most "

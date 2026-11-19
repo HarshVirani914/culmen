@@ -32,13 +32,14 @@ def fetch_live_chat(url: str) -> list[tuple[float, str, str]]:
     """Download the whole chat replay of a YouTube video with yt-dlp (about 30 s for a 3 h stream)."""
     import yt_dlp
 
+    from .cookies import ytdlp_auth_opts
     from .download import ALLOWED_EXTRACTORS
 
     with tempfile.TemporaryDirectory() as d:
         opts = {
             "skip_download": True, "writesubtitles": True, "subtitleslangs": ["live_chat"],
             "outtmpl": str(Path(d) / "c"), "quiet": True, "noplaylist": True,
-            "allowed_extractors": ALLOWED_EXTRACTORS,
+            "allowed_extractors": ALLOWED_EXTRACTORS, **ytdlp_auth_opts(),
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.extract_info(url, download=True)

@@ -35,8 +35,9 @@ def _probe_size(path: Path) -> tuple[int, int]:
 
 
 class LiveSession:
-    def __init__(self, url: str, notes: str, settings: Settings, store: JobStore):
+    def __init__(self, url: str, notes: str, settings: Settings, store: JobStore, sensitivity: str = "normal"):
         self.url, self.notes, self.settings, self.store = url, notes, settings, store
+        self.sensitivity = sensitivity
         self.id = f"{int(time.time())}{id(self) % 1000:03d}"
         self.started_at = time.time()
         self.moments: list[str] = []
@@ -54,7 +55,7 @@ class LiveSession:
         self._chat_thread: threading.Thread | None = None
         self.dir = settings.data_dir / "live" / self.id
         self.buffer = SegmentBuffer(self.dir / "buffer", settings.live_buffer_seconds, SEG)
-        self.detector = LiveDetector()
+        self.detector = LiveDetector(sensitivity=sensitivity)
         self.tracker = ScoreTracker()
         self.recorder: Recorder | None = None
         self._title_q: queue.Queue = queue.Queue()
@@ -218,6 +219,7 @@ class LiveSession:
     def snapshot(self) -> dict:
         return {
             "id": self.id, "status": self.status, "started_at": self.started_at, "url": self.url,
+            "sensitivity": self.sensitivity,
             "buffer_seconds": round(self.buffer.available_end() - self.buffer.available_start(), 1),
             "disk_mb": self._disk_mb(),
             "signals": {"chat": self.tracker.has_chat, "chat_source": self._chat is not None, "audio": True},
@@ -239,10 +241,11 @@ class Manager:
     def get(self, sid: str) -> LiveSession | None:
         return self.sessions.get(sid)
 
-    def start(self, url: str, notes: str, settings: Settings, store: JobStore) -> LiveSession:
+    def start(self, url: str, notes: str, settings: Settings, store: JobStore,
+              sensitivity: str = "normal") -> LiveSession:
         if self._last and self._last.running:
             raise RuntimeError("a live session is already running")
-        s = LiveSession(url, notes, settings, store)
+        s = LiveSession(url, notes, settings, store, sensitivity)
         s.start()
         self.sessions[s.id] = s
         self._last = s

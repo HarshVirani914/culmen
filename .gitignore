@@ -7,3 +7,4 @@ node_modules/
 frontend/dist/
 .pytest_cache/
 .DS_Store
+data/youtube_cookies.txt

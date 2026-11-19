@@ -11,6 +11,14 @@ class MomentWindow:
     score: float
 
 
+# (floor, margin, std multiplier): how far above the stream's own recent baseline a spike has to rise.
+SENSITIVITY = {
+    "low": (0.50, 0.15, 2.5),     # only clear, big reactions
+    "normal": (0.35, 0.10, 2.0),
+    "high": (0.20, 0.05, 1.5),    # milder spikes count too (more moments, more misses)
+}
+
+
 class LiveDetector:
     """Turns a once-per-second 0..1 score into moment windows (session clock, seconds).
 
@@ -28,10 +36,15 @@ class LiveDetector:
     MAX_LEN = 60
 
     def __init__(self, pre_roll: float = 25, post_roll: float = 12, tail: float = 3, cooldown: float = 45,
-                 max_per_hour: int = 12, history: float = 600, floor: float = 0.35, margin: float = 0.1):
+                 max_per_hour: int = 12, history: float = 600, floor: float | None = None,
+                 margin: float | None = None, sensitivity: str = "normal"):
         self.pre_roll, self.post_roll, self.tail = pre_roll, post_roll, tail
         self.cooldown, self.max_per_hour, self.history = cooldown, max_per_hour, history
-        self.floor, self.margin = floor, margin
+        f, m, k = SENSITIVITY.get(sensitivity, SENSITIVITY["normal"])
+        self.floor = f if floor is None else floor
+        self.margin = m if margin is None else margin
+        self.k = k
+        self.sensitivity = sensitivity if sensitivity in SENSITIVITY else "normal"
         self.available_start: float = 0.0
         self._hist: deque[tuple[float, float]] = deque()
         self._fired: list[float] = []
@@ -45,7 +58,7 @@ class LiveDetector:
         if len(base) < self.WARMUP:
             return None
         arr = np.asarray(base)
-        return max(self.floor, float(arr.mean() + max(2 * arr.std(), self.margin)))
+        return max(self.floor, float(arr.mean() + max(self.k * arr.std(), self.margin)))
 
     def feed(self, t: float, score: float) -> MomentWindow | None:
         self._hist.append((t, score))

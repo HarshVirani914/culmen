@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Literal
 
 from ..config import ffmpeg_bin
+from ..cookies import ytdlp_auth_opts
 from ..download import ALLOWED_EXTRACTORS
 from .buffer import Segment
 
@@ -29,7 +30,8 @@ def resolve_stream(url: str) -> StreamInfo:
     """Direct stream URL(s) (video, plus a separate audio URL when needed) and metadata of a live stream."""
     import yt_dlp
 
-    opts = {"quiet": True, "noplaylist": True, "format": STREAM_FORMAT, "allowed_extractors": ALLOWED_EXTRACTORS}
+    opts = {"quiet": True, "noplaylist": True, "format": STREAM_FORMAT, "allowed_extractors": ALLOWED_EXTRACTORS,
+            **ytdlp_auth_opts()}
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if not info.get("is_live"):

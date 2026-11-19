@@ -30,3 +30,4 @@ Live T7: complete (full pytest green incl. 7 live API tests with real recorder o
 Live T8: complete (live API tests 11 passed incl. titles; LLM fallback never overwrites title)
 Live T9: complete (vitest 11 passed, npm build OK, backend live API 12 passed; UI not yet checked against a real live stream)
 Live T10 partial: Twitch live (kaicenat, 1080p): recording OK, buffer rolled (~1 MB/s), IRC chat OK (451 msgs/4min), clean stop. YouTube live (IShowSpeed): recording OK; chat was broken (bare UA got stub page) FIXED, 1080 msgs/75s. English replay (Sapnap VOD): ranking 10 clips in 67s (was ~20 min). Not yet seen: a real moment from a live stream; Kick (no live channel found); Twitch ads
+Range UX: replaced free-text range with hh:mm:ss fields; backend rejects ranges <20 s (user typed 1 to 2 meaning hours, got 1 s); replay find_candidates now guarantees >=3 non-overlapping moments (174 backend + 17 frontend tests)

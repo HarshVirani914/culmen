@@ -69,3 +69,26 @@ def test_adaptive_threshold_ignores_constant_loud_stream():
 def test_long_loud_event_window_never_exceeds_60s():
     got = run(LiveDetector(), series(400, (100, 160, 1.0)))
     assert got and all(w.end - w.start <= 60 for _, w in got)
+
+
+def mild_series():
+    return series(300, (100, 106, 0.3), base=0.05)
+
+
+def test_sensitivity_controls_how_mild_a_spike_still_counts():
+    assert run(LiveDetector(sensitivity="high"), mild_series()), "high should catch a mild spike"
+    assert not run(LiveDetector(sensitivity="normal"), mild_series())
+    assert not run(LiveDetector(sensitivity="low"), mild_series())
+
+
+def test_strong_spike_triggers_at_every_sensitivity():
+    for level in ("low", "normal", "high"):
+        assert run(LiveDetector(sensitivity=level), series(300, (100, 106, 1.0))), level
+
+
+def test_loud_constant_stream_never_triggers_even_on_high():
+    assert run(LiveDetector(sensitivity="high"), series(900, base=0.9)) == []
+
+
+def test_unknown_sensitivity_falls_back_to_normal():
+    assert LiveDetector(sensitivity="bogus").floor == LiveDetector(sensitivity="normal").floor

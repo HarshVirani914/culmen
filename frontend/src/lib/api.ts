@@ -92,13 +92,15 @@ export type LiveSnapshot = {
   title: string
   buffer_seconds: number
   disk_mb: number
+  sensitivity: Sensitivity
   signals: { chat: boolean; chat_source: boolean; audio: boolean }
   recent_scores: number[]
   moments: string[]
   error: string | null
 }
-export const startLive = (url: string, notes: string) =>
-  req<{ id: string }>('/api/live', { method: 'POST', body: JSON.stringify({ url, notes }) })
+export type Sensitivity = 'low' | 'normal' | 'high'
+export const startLive = (url: string, notes: string, sensitivity: Sensitivity = 'normal') =>
+  req<{ id: string }>('/api/live', { method: 'POST', body: JSON.stringify({ url, notes, sensitivity }) })
 export const getLive = (id: string) => req<LiveSnapshot>(`/api/live/${id}`)
 export const stopLive = (id: string) => req<LiveSnapshot>(`/api/live/${id}/stop`, { method: 'POST' })
 export const jobVideoUrl = (id: string) => `/api/jobs/${id}/video`

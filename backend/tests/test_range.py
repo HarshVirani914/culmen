@@ -161,3 +161,40 @@ def test_tiny_ranges_rejected_with_a_helpful_message(client, kw):
     r = post(client, **kw)
     assert r.status_code == 422
     assert "too short" in r.json()["detail"] and "h:mm:ss" in r.json()["detail"]
+
+
+class PostLiveYDL(FakeYDL):
+    def extract_info(self, url, download=True):
+        assert not download, "must refuse before downloading"
+        return {"duration": 86000, "title": "t", "live_status": "post_live"}
+
+
+def test_just_ended_long_stream_gets_a_clear_wait_message(monkeypatch, tmp_path):
+    import yt_dlp
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", PostLiveYDL)
+    with pytest.raises(ValueError, match="still processing"):
+        download.download_video("https://youtu.be/x", tmp_path, start=3600, end=7200)
+
+
+def test_post_live_short_stream_still_downloads_whole_and_cuts_locally(monkeypatch, tmp_path):
+    import yt_dlp
+
+    class ShortPostLive(NativeYDL):
+        def extract_info(self, url, download=True):
+            info = super().extract_info(url, download)
+            if not download:
+                info["live_status"] = "post_live"
+            return info
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(ShortPostLive(opts), tmp_path))
+    v = download.download_video("https://youtu.be/x", tmp_path, start=10, end=40)
+    assert abs(download._probe_duration(v.path) - 30) < 3
+
+
+def test_download_passes_cookie_file_to_ytdlp_when_configured(monkeypatch, tmp_path):
+    import yt_dlp
+    cf = tmp_path / "c.txt"
+    cf.write_text("x")
+    monkeypatch.setenv("YTDLP_COOKIES_FILE", str(cf))
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(NativeYDL(opts), tmp_path))
+    download.download_video("https://youtu.be/x", tmp_path)
+    assert NativeYDL.seen["opts"]["cookiefile"] == str(cf)
