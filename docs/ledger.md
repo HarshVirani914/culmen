@@ -29,3 +29,4 @@ Live T6: complete (live signals + chat parser tests 12 passed). Twitch IRC clien
 Live T7: complete (full pytest green incl. 7 live API tests with real recorder on a local source). Ruling: moments created via store.create + update (no create_ready helper); 'used' marker file exempts opened/rendered moments from the cap
 Live T8: complete (live API tests 11 passed incl. titles; LLM fallback never overwrites title)
 Live T9: complete (vitest 11 passed, npm build OK, backend live API 12 passed; UI not yet checked against a real live stream)
+Live T10 partial: Twitch live (kaicenat, 1080p): recording OK, buffer rolled (~1 MB/s), IRC chat OK (451 msgs/4min), clean stop. YouTube live (IShowSpeed): recording OK; chat was broken (bare UA got stub page) FIXED, 1080 msgs/75s. English replay (Sapnap VOD): ranking 10 clips in 67s (was ~20 min). Not yet seen: a real moment from a live stream; Kick (no live channel found); Twitch ads

@@ -43,7 +43,7 @@ export function UrlForm({
     <Card>
       <CardHeader>
         <CardTitle>1. Stream link</CardTitle>
-        <CardDescription>Paste a YouTube stream or replay URL. Moments are found automatically.</CardDescription>
+        <CardDescription>Paste a stream or replay link. Moments are found automatically.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -54,10 +54,10 @@ export function UrlForm({
           }}
         >
           <div className="grid gap-2">
-            <Label htmlFor="url">YouTube URL</Label>
+            <Label htmlFor="url">Video or stream URL (YouTube, Twitch, Kick)</Label>
             <Input
               id="url"
-              placeholder="https://www.youtube.com/watch?v=…"
+              placeholder="https://www.youtube.com/watch?v=… or twitch.tv/videos/…"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               disabled={busy}
