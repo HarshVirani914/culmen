@@ -26,7 +26,7 @@ export function CandidateList({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>3. Pick a moment</CardTitle>
+        <CardTitle>2. Pick a moment</CardTitle>
         <CardDescription>Ranked by chat, audio and replay-graph reactions. Trim before rendering.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">

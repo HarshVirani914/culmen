@@ -49,3 +49,22 @@ def test_frame_endpoint_returns_jpeg(client):
     wait_ready(client, jid)
     r = client.get(f"/api/jobs/{jid}/frame")
     assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+
+
+def test_frame_at_time_returns_different_frames_and_clamps(client):
+    jid = client.post("/api/jobs", json={"url": "https://youtu.be/x", "notes": ""}).json()["id"]
+    wait_ready(client, jid)
+    a = client.get(f"/api/jobs/{jid}/frame", params={"t": 2})
+    b = client.get(f"/api/jobs/{jid}/frame", params={"t": 30})
+    assert a.status_code == b.status_code == 200 and a.headers["content-type"] == "image/jpeg"
+    assert a.content != b.content  # the test video changes over time
+    assert client.get(f"/api/jobs/{jid}/frame", params={"t": 30}).content == b.content  # cached, stable
+    far = client.get(f"/api/jobs/{jid}/frame", params={"t": 99999})
+    assert far.status_code == 200  # clamped to the end of the video
+    assert client.get(f"/api/jobs/{jid}/frame", params={"t": -5}).status_code == 422
+
+
+def test_frame_without_time_still_returns_the_default_frame(client):
+    jid = client.post("/api/jobs", json={"url": "https://youtu.be/x", "notes": ""}).json()["id"]
+    wait_ready(client, jid)
+    assert client.get(f"/api/jobs/{jid}/frame").status_code == 200

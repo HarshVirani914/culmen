@@ -1,4 +1,5 @@
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+import subprocess
 from pathlib import Path
 from typing import Literal
 
@@ -6,12 +7,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .config import ROOT, captions_available, ffmpeg_available, get_settings
-from .download import MAX_SECTION, validate_url
+from .config import ROOT, captions_available, ffmpeg_available, ffmpeg_bin, get_settings
+from .download import MAX_SECTION, _probe_duration, validate_url
 
 MIN_RANGE = 20  # seconds
 from .jobs import JobStore, RenderStore
 from .layouts import LAYOUTS
+from .library import LibraryStore
 from .live.session import get_manager
 from .pipeline import run_analysis, run_render
 from .profiles import ProfileStore
@@ -104,6 +106,48 @@ def _mark_used(job_id: str) -> None:
 
 
 @app.get("/api/jobs/{job_id}/frame")
+def get_frame(job_id: str, t: float | None = Query(default=None, ge=0)):
+    """A still from the job's video: the default sample frame, or the frame at `t` seconds (cached)."""
+    d = store().dir(job_id)
+    if t is None:
+        p = d / "frame.jpg"
+        if not p.exists():
+            raise HTTPException(404, "frame not ready")
+    else:
+        job = store().get(job_id)
+        video = Path(job["video"]["path"]) if job and job.get("video") else d / "video.mp4"
+        if not video.exists():
+            raise HTTPException(404, "video not ready")
+        dur = _probe_duration(video)
+        t = round(min(t, max(dur - 0.5, 0)) * 2) / 2  # half-second steps, inside the video
+        cache = d / "frames"
+        cache.mkdir(exist_ok=True)
+        p = cache / f"f_{t:.1f}.jpg"
+        if not p.exists():
+            r = subprocess.run([ffmpeg_bin(), "-y", "-loglevel", "error", "-ss", f"{t:.2f}", "-i", str(video),
+                                "-frames:v", "1", "-q:v", "3", str(p)], capture_output=True, text=True)
+            if r.returncode != 0 or not p.exists():
+                raise HTTPException(404, "could not read that frame")
+    _mark_used(job_id)
+    return FileResponse(p, media_type="image/jpeg")
+
+
+@app.get("/api/jobs/{job_id}/video")
+def get_job_video(job_id: str):
+    p = store().dir(job_id) / "video.mp4"
+    if not p.exists():
+        raise HTTPException(404, "video not ready")
+    return FileResponse(p, media_type="video/mp4")
+
+
+def _mark_used(job_id: str) -> None:
+    """A moment the user opened or rendered is exempt from the live storage cap."""
+    d = store().dir(job_id)
+    if d.exists():
+        (d / "used").write_text("1")
+
+
+@app.get("/api/jobs/{job_id}/frame")
 def get_frame(job_id: str):
     p = store().dir(job_id) / "frame.jpg"
     if not p.exists():
@@ -152,6 +196,62 @@ def stop_live(session_id: str):
     return s.snapshot()
 
 
+class LibrarySaveIn(BaseModel):
+    render_id: str
+    title: str | None = None
+
+
+class LibraryRenameIn(BaseModel):
+    title: str
+
+
+def library() -> LibraryStore:
+    return LibraryStore(get_settings().data_dir)
+
+
+@app.post("/api/library")
+def save_to_library(body: LibrarySaveIn):
+    try:
+        lid = library().add(RenderStore(get_settings().data_dir), store(), body.render_id, body.title)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"id": lid}
+
+
+@app.get("/api/library")
+def list_library():
+    return library().list()
+
+
+@app.get("/api/library/{lid}/file")
+def library_file(lid: str):
+    lib = library()
+    if lib.get(lid) is None or not lib.video(lid).exists():
+        raise HTTPException(404, "clip not found")
+    meta = lib.get(lid)
+    safe = "".join(c for c in meta["title"] if c.isalnum() or c in " -_").strip() or "short"
+    return FileResponse(lib.video(lid), media_type="video/mp4", filename=f"{safe}.mp4")
+
+
+@app.patch("/api/library/{lid}")
+def rename_library_item(lid: str, body: LibraryRenameIn):
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(422, "title cannot be empty")
+    if not library().rename(lid, title[:200]):
+        raise HTTPException(404, "clip not found")
+    return {"ok": True}
+
+
+@app.delete("/api/library/{lid}")
+def delete_library_item(lid: str):
+    if not library().delete(lid):
+        raise HTTPException(404, "clip not found")
+    return {"ok": True}
+
+
 @app.get("/api/profiles/{channel_id}")
 def get_profile(channel_id: str):
     return ProfileStore(get_settings().data_dir).get(channel_id)
@@ -185,6 +285,7 @@ def start_render(job_id: str, body: RenderIn, bg: BackgroundTasks):
     _mark_used(job_id)
     rs = RenderStore(get_settings().data_dir)
     rid = rs.create(job_id)
+    rs.update(rid, request=body.model_dump(include={"start", "end", "layout", "captions", "credit"}))
     bg.add_task(run_render, rid, rs, js, job_id, body.model_dump())
     return {"render_id": rid}
 

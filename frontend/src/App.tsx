@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { BoxPicker } from '@/components/BoxPicker'
 import { CandidateList } from '@/components/CandidateList'
+import { LibraryPanel } from '@/components/LibraryPanel'
 import { LivePanel } from '@/components/LivePanel'
 import { RenderPanel } from '@/components/RenderPanel'
 import { UrlForm } from '@/components/UrlForm'
@@ -13,13 +14,16 @@ const DEFAULT_GAME: Box = { x: 0, y: 0, w: 1, h: 1 }
 const DEFAULT_FACE: Box = { x: 0.75, y: 0.05, w: 0.22, h: 0.3 }
 
 export default function App() {
-  const [tab, setTab] = useState<'replay' | 'live'>('replay')
+  const [tab, setTab] = useState<'replay' | 'live' | 'library'>('replay')
+  const [libCount, setLibCount] = useState(0)
+  const [libKey, setLibKey] = useState(0)
   const [job, setJob] = useState<Job | null>(null)
   const [game, setGame] = useState<Box>(DEFAULT_GAME)
   const [face, setFace] = useState<Box | null>(DEFAULT_FACE)
   const [saved, setSaved] = useState(false)
   const [selected, setSelected] = useState<number | null>(null)
   const [trims, setTrims] = useState<Record<number, [number, number]>>({})
+  const [frameT, setFrameT] = useState<number | undefined>(undefined)
 
   const pending = job && job.status !== 'ready' && job.status !== 'error'
 
@@ -71,6 +75,12 @@ export default function App() {
         })()
       : null
 
+  // Frame the stream on a picture from the moment being rendered: overlays move between scenes.
+  const clipMid = clip ? Math.round(((clip.start + clip.end) / 2) * 2) / 2 : undefined
+  useEffect(() => {
+    setFrameT(clipMid)
+  }, [job?.id, selected, clipMid === undefined ? -1 : Math.floor((clip!.start + clip!.end) / 2 / 10)])
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
@@ -78,7 +88,7 @@ export default function App() {
         <p className="text-muted-foreground text-sm">Turn stream highlights into vertical Shorts.</p>
       </header>
       <div role="tablist" className="bg-muted inline-flex rounded-lg p-1">
-        {(['replay', 'live'] as const).map((t) => (
+        {(['replay', 'live', 'library'] as const).map((t) => (
           <button
             key={t}
             role="tab"
@@ -90,6 +100,7 @@ export default function App() {
             )}
           >
             {t}
+            {t === 'library' && libCount > 0 && <span className="text-muted-foreground ml-1.5 text-xs">{libCount}</span>}
           </button>
         ))}
       </div>
@@ -104,10 +115,27 @@ export default function App() {
           }}
         />
       </div>
+      <div className={cn(tab !== 'library' && 'hidden')}>
+        <LibraryPanel refreshKey={libKey} active={tab === 'library'} onCount={setLibCount} />
+      </div>
       {job?.status === 'ready' && job.video && (
-        <>
+        <div className={cn('space-y-6', tab === 'library' && 'hidden')}>
+          <CandidateList
+            candidates={job.candidates}
+            duration={job.video.duration}
+            offset={job.video.offset ?? 0}
+            selected={selected}
+            trims={trims}
+            onSelect={setSelected}
+            onTrim={(i, r) => setTrims((t) => ({ ...t, [i]: r }))}
+          />
           <BoxPicker
-            src={frameUrl(job.id)}
+            src={frameUrl(job.id, frameT)}
+            frameTime={frameT}
+            clipStart={clip?.start ?? 0}
+            clipEnd={clip?.end ?? job.video.duration}
+            offset={job.video.offset ?? 0}
+            onFrameTime={setFrameT}
             game={game}
             face={face}
             saved={saved}
@@ -126,17 +154,15 @@ export default function App() {
               }
             }}
           />
-          <CandidateList
-            candidates={job.candidates}
-            duration={job.video.duration}
-            offset={job.video.offset ?? 0}
-            selected={selected}
-            trims={trims}
-            onSelect={setSelected}
-            onTrim={(i, r) => setTrims((t) => ({ ...t, [i]: r }))}
+          <RenderPanel
+            jobId={job.id}
+            clip={clip}
+            game={game}
+            face={face}
+            title={selected !== null ? job.candidates[selected]?.title : undefined}
+            onSaved={() => setLibKey((k) => k + 1)}
           />
-          <RenderPanel jobId={job.id} clip={clip} game={game} face={face} />
-        </>
+        </div>
       )}
       <Toaster />
     </div>

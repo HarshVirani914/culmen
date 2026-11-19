@@ -1,7 +1,9 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { fmtTime } from '@/lib/time'
 import { Label } from '@/components/ui/label'
 import type { Box } from '@/lib/api'
 import { moveBox, resizeBox, type Handle } from '@/lib/boxes'
@@ -76,6 +78,11 @@ function DraggableBox({
 
 export function BoxPicker({
   src,
+  frameTime,
+  clipStart,
+  clipEnd,
+  offset,
+  onFrameTime,
   game,
   face,
   onChange,
@@ -83,6 +90,11 @@ export function BoxPicker({
   saved,
 }: {
   src: string
+  frameTime?: number
+  clipStart: number
+  clipEnd: number
+  offset: number
+  onFrameTime: (t: number) => void
   game: Box
   face: Box | null
   onChange: (game: Box, face: Box | null) => void
@@ -90,12 +102,15 @@ export function BoxPicker({
   saved: boolean
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
+  const [dragT, setDragT] = useState<number | null>(null)
+  useEffect(() => setDragT(null), [frameTime])
+  const shownT = dragT ?? frameTime ?? clipStart
   return (
     <Card>
       <CardHeader>
-        <CardTitle>2. Frame the stream</CardTitle>
+        <CardTitle>3. Frame the stream</CardTitle>
         <CardDescription>
-          Drag and resize the boxes: blue is the gameplay area, orange is the facecam. Saved per streamer.
+          Drag and resize the boxes: blue is the gameplay area, orange is the facecam. Overlays can move between scenes, so check the frame from your moment (slide to look at other moments of the clip).
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -118,6 +133,19 @@ export function BoxPicker({
             />
           )}
         </div>
+        {clipEnd > clipStart && (
+          <div className="grid gap-1 px-1">
+            <Label className="text-xs">Frame at {fmtTime(shownT + offset)}</Label>
+            <Slider
+              min={clipStart}
+              max={clipEnd}
+              step={0.5}
+              value={[Math.min(Math.max(shownT, clipStart), clipEnd)]}
+              onValueChange={(v) => Array.isArray(v) && setDragT(v[0])}
+              onValueCommitted={(v) => Array.isArray(v) && onFrameTime(v[0])}
+            />
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Switch

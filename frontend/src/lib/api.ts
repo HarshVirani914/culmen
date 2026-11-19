@@ -69,7 +69,8 @@ export const createJob = (url: string, notes: string, rangeStart?: number | null
     body: JSON.stringify({ url, notes, range_start: rangeStart ?? null, range_end: rangeEnd ?? null }),
   })
 export const getJob = (id: string) => req<Job>(`/api/jobs/${id}`)
-export const frameUrl = (id: string) => `/api/jobs/${id}/frame`
+export const frameUrl = (id: string, t?: number) =>
+  t === undefined ? `/api/jobs/${id}/frame` : `/api/jobs/${id}/frame?t=${t.toFixed(1)}`
 export const getProfile = (channelId: string) =>
   req<Profile | null>(`/api/profiles/${encodeURIComponent(channelId)}`)
 export const saveProfile = (channelId: string, p: Profile) =>
@@ -104,3 +105,29 @@ export const startLive = (url: string, notes: string, sensitivity: Sensitivity =
 export const getLive = (id: string) => req<LiveSnapshot>(`/api/live/${id}`)
 export const stopLive = (id: string) => req<LiveSnapshot>(`/api/live/${id}/stop`, { method: 'POST' })
 export const jobVideoUrl = (id: string) => `/api/jobs/${id}/video`
+
+export type LibraryItem = {
+  id: string
+  title: string
+  created_at: number
+  render_id: string
+  job_id: string
+  source_url: string
+  stream_title: string
+  channel: string
+  layout: Layout | ''
+  captions: boolean
+  credit: boolean
+  clip_start: number
+  clip_end: number
+  stream_start: number
+  duration: number
+  size_bytes: number
+}
+export const saveToLibrary = (renderId: string, title?: string) =>
+  req<{ id: string }>('/api/library', { method: 'POST', body: JSON.stringify({ render_id: renderId, title }) })
+export const listLibrary = () => req<LibraryItem[]>('/api/library')
+export const renameLibraryItem = (id: string, title: string) =>
+  req<{ ok: boolean }>(`/api/library/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) })
+export const deleteLibraryItem = (id: string) => req<{ ok: boolean }>(`/api/library/${id}`, { method: 'DELETE' })
+export const libraryFileUrl = (id: string) => `/api/library/${id}/file`

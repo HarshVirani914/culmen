@@ -36,6 +36,14 @@ YouTube, Twitch and Kick (`youtube.com`, `youtu.be`, `twitch.tv`, `kick.com`). N
 
 When chat is unavailable the app detects moments from audio alone and says so.
 
+## Library
+Press **Save to library** on a finished render to keep it. Saved clips live in `data/library/`, survive refreshes and
+restarts, and are never cleaned up automatically. The Library tab lists, plays, renames, downloads and deletes them.
+
+## Framing tip
+Streamers move their facecam overlay between scenes. The frame step shows a frame from the moment you picked, with a
+slider to look at other moments of the clip. Check that the orange box sits on the overlay in *that* frame.
+
 ## Live clipping
 - Records with ffmpeg stream copy (no re-encode, source quality) into 6-second segments.
 - Keeps a rolling buffer (default 12 minutes, about 700 MB for a 1080p stream). Set

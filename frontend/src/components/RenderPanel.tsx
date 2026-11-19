@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import { getHealth, getRender, startRender, type Box, type Layout, type RenderState } from '@/lib/api'
+import { getHealth, getRender, saveToLibrary, startRender, type Box, type Layout, type RenderState } from '@/lib/api'
 
 const LAYOUT_LABELS: Record<Layout, string> = {
   stacked: 'Stacked',
@@ -44,7 +44,11 @@ export function RenderPanel({
   clip,
   game,
   face,
+  title,
+  onSaved,
 }: {
+  title?: string
+  onSaved?: () => void
   jobId: string
   clip: { start: number; end: number } | null
   game: Box
@@ -56,6 +60,8 @@ export function RenderPanel({
   const [render, setRender] = useState<RenderState | null>(null)
   const [busy, setBusy] = useState(false)
   const [captionsOk, setCaptionsOk] = useState(true)
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const timer = useRef<number | null>(null)
 
   useEffect(() => {
@@ -81,6 +87,7 @@ export function RenderPanel({
     if (!clip) return
     setBusy(true)
     setRender(null)
+    setSavedId(null)
     try {
       const { render_id } = await startRender(jobId, {
         start: clip.start,
@@ -164,6 +171,24 @@ export function RenderPanel({
         {render?.status === 'done' && render.url && (
           <div className="grid max-w-xs gap-3">
             <video src={render.url} controls className="aspect-[9/16] w-full rounded-md bg-black" />
+            <Button
+              disabled={saving || savedId !== null}
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  const { id } = await saveToLibrary(render.id, title)
+                  setSavedId(id)
+                  toast.success('Saved to your library')
+                  onSaved?.()
+                } catch (e) {
+                  toast.error((e as Error).message)
+                } finally {
+                  setSaving(false)
+                }
+              }}
+            >
+              {savedId ? 'Saved to library ✓' : saving ? 'Saving…' : 'Save to library'}
+            </Button>
             <a href={render.url} download="short.mp4">
               <Button variant="outline" className="w-full">
                 Download MP4
