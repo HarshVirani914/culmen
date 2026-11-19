@@ -46,15 +46,30 @@ When chat is unavailable the app detects moments from audio alone and says so.
   work unchanged. Saved moments are capped at 3 GB (`CLIPPER_LIVE_CAP_GB`); the oldest unopened ones go
   first, and any moment you opened or rendered is kept.
 - One live session at a time. A session does not survive an app restart; saved moments do.
+- Sensitivity (Low / Normal / High) sets how far above the stream's own baseline a spike has to rise. Use High for
+  streams that are loud all the time.
 - Auto-posting and auto-render are not implemented.
 
-## Long and slow videos
-- Videos up to 4 hours are downloaded whole at full speed and the requested range is cut locally.
-- Longer videos use a slow section download (at most 3 hours). Very long live-stream replays may
-  fail to download a section; pick a shorter replay.
-- Live-stream replays are stored by YouTube as thousands of small pieces and can download very slowly
+## Time ranges and long videos
+- **Fast section download:** for processed YouTube videos, only the requested time range is fetched, using the
+  video's segment index (`sidx`) and many parallel chunked requests. A 5 minute 1080p60 section of a 9 hour video
+  took 34 s (the old ffmpeg section download ran at about 0.6x realtime, 25+ minutes for 30 minutes). The cut
+  snaps outward to segment boundaries (a few seconds); timestamps in the app account for that.
+- If that is not possible (no mp4/avc1 formats, no index), it falls back to downloading videos up to 4 hours whole
+  and cutting locally, and for longer ones to the slow ffmpeg section download (at most 3 hours).
+- **Replays of streams that just ended** (`post_live`) can't be cut until YouTube finishes processing them, usually
+  a few hours. The app says so instead of failing cryptically.
+- Live-stream replays are stored by YouTube as thousands of small pieces and can download very slowly whole
   (the app uses 32 parallel pieces). Uploaded videos download much faster.
-- Before downloading, the app checks free disk space and refuses if it is too low.
+- Before a whole-file download the app checks free disk space and refuses if it is too low.
+
+## YouTube "confirm you're not a bot" (optional cookies)
+If YouTube blocks requests, export the login cookies of a **throwaway** account (never your main one):
+sign in to youtube.com in a browser profile, quit that browser completely, then run
+`cd backend && uv run python -m app.cookies brave "Profile 6"` (browser and profile name as in your browser).
+Only YouTube/Google cookies are saved, to `data/youtube_cookies.txt` (private, git-ignored). Each request uses a
+private copy, so YouTube's cookie rotation never damages the saved file. Don't use that account in a browser while
+the tool runs.
 
 ## Layouts
 `stacked` (facecam on top), `facecam bubble`, `gameplay only` (blurred background), `facecam only`.

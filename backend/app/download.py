@@ -24,6 +24,7 @@ class VideoInfo:
     width: int
     height: int
     info: dict
+    actual_start: float | None = None  # where the cut really begins (segment aligned), when ranged
 
 
 def _probe_duration(path: Path) -> float:
@@ -40,6 +41,28 @@ def _probe_duration(path: Path) -> float:
 MAX_SECTION = 3 * 3600  # seconds; longest section we will fetch with the slow ranged path
 NATIVE_MAX = 4 * 3600  # videos up to this length download whole at full speed, then are cut locally
 GB_PER_HOUR = 2.0  # generous 1080p estimate, used for the free-disk check
+
+
+SECTION_FORMAT = "bestvideo[height<=1080][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]"
+
+
+def _fast_section(url: str, base: dict, sec_start: float, sec_end: float, dest_dir: Path):
+    """Fetch just [sec_start, sec_end] with chunked parallel requests (see sections.py).
+    Returns (SectionResult, info) or raises sections.SectionUnavailable."""
+    import yt_dlp
+
+    from . import sections
+
+    with yt_dlp.YoutubeDL({**base, "skip_download": True, "format": SECTION_FORMAT}) as ydl:
+        info = ydl.extract_info(url, download=False)
+    rf = info.get("requested_formats") or []
+    video = next((f for f in rf if f.get("vcodec") not in (None, "none")), None)
+    audio = next((f for f in rf if f.get("acodec") not in (None, "none") and f.get("vcodec") in (None, "none")), None)
+    if not video or not audio or video.get("protocol") not in ("https", "http"):
+        raise sections.SectionUnavailable("no plain https mp4 formats for this video")
+    res = sections.download_section(video["url"], audio["url"], sec_start, sec_end, dest_dir / "video.mp4",
+                                    video.get("http_headers"))
+    return res, info
 
 
 def _cut_section(full: Path, start: float, end: float, out: Path) -> None:
@@ -85,6 +108,18 @@ def download_video(url: str, dest_dir: Path, start: float | None = None, end: fl
         raise ValueError(
             f"This video is {total / 3600:.1f} h long. Set a time range (range start/end) of at most "
             f"{MAX_SECTION // 3600} h so it can be downloaded.")
+    if ranged and meta.get("live_status") != "post_live":
+        from . import sections
+        try:
+            res, finfo = _fast_section(url, base, sec_start, sec_end, dest_dir)
+            return VideoInfo(
+                path=dest_dir / "video.mp4", title=finfo.get("title") or "",
+                channel_id=finfo.get("channel_id") or finfo.get("uploader_id") or "unknown",
+                channel=finfo.get("channel") or finfo.get("uploader") or "", duration=res.duration,
+                width=int(finfo.get("width") or 1920), height=int(finfo.get("height") or 1080), info=finfo,
+                actual_start=res.actual_start)
+        except (sections.SectionUnavailable, RuntimeError, OSError):
+            pass  # fall back to the older whole-file / ffmpeg section paths below
     need = (total if native else length) / 3600 * GB_PER_HOUR * 1e9
     free = shutil.disk_usage(dest_dir).free
     if free < need * 1.2:

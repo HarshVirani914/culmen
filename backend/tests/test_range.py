@@ -197,4 +197,55 @@ def test_download_passes_cookie_file_to_ytdlp_when_configured(monkeypatch, tmp_p
     monkeypatch.setenv("YTDLP_COOKIES_FILE", str(cf))
     monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(NativeYDL(opts), tmp_path))
     download.download_video("https://youtu.be/x", tmp_path)
-    assert NativeYDL.seen["opts"]["cookiefile"] == str(cf)
+    assert open(NativeYDL.seen["opts"]["cookiefile"]).read() == "x"
+
+
+class SectionYDL(NativeYDL):
+    """Metadata with separate video/audio DASH URLs, like a processed YouTube video."""
+    def extract_info(self, url, download=True):
+        if not download:
+            base = {"duration": 30000, "title": "t", "is_live": False, "channel_id": "UC9", "channel": "Ch",
+                    "width": 1920, "height": 1080, "live_status": "was_live"}
+            if self.opts.get("format", "").startswith("bestvideo[height<=1080][vcodec^=avc1]"):
+                base["requested_formats"] = [
+                    {"url": "http://v/video", "vcodec": "avc1", "acodec": "none", "protocol": "https",
+                     "http_headers": {"User-Agent": "x"}},
+                    {"url": "http://a/audio", "vcodec": "none", "acodec": "mp4a", "protocol": "https"}]
+            return base
+        raise AssertionError("must not use the slow downloader when the fast section path works")
+
+
+def test_long_video_range_uses_fast_section_download(monkeypatch, tmp_path):
+    import yt_dlp
+    from app import sections
+    seen = {}
+
+    def fake_section(v, a, s, e, out, headers=None, **kw):
+        seen.update(v=v, a=a, s=s, e=e, headers=headers)
+        out.write_bytes(b"x" * 5000)
+        return sections.SectionResult(actual_start=3597.0, duration=1806.0, bytes_downloaded=5000)
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(SectionYDL(opts), tmp_path))
+    monkeypatch.setattr(sections, "download_section", fake_section)
+    monkeypatch.setattr(download, "_probe_duration", lambda p: 1806.0)
+    v = download.download_video("https://youtu.be/x", tmp_path, start=3600, end=5400)
+    assert (seen["v"], seen["a"], seen["s"], seen["e"]) == ("http://v/video", "http://a/audio", 3600, 5400)
+    assert seen["headers"] == {"User-Agent": "x"}
+    assert v.path.name == "video.mp4" and v.actual_start == 3597.0 and v.duration == 1806.0
+
+
+def test_fast_path_failure_falls_back_to_the_old_downloaders(monkeypatch, tmp_path):
+    import yt_dlp
+    from app import sections
+
+    def boom(*a, **k):
+        raise sections.SectionUnavailable("no sidx")
+
+    class Fallback(NativeYDL):
+        def extract_info(self, url, download=True):
+            if not download:
+                return {"duration": 7200, "title": "t", "is_live": False}  # no requested_formats at all
+            return super().extract_info(url, download)
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", lambda opts: _with_dest(Fallback(opts), tmp_path))
+    monkeypatch.setattr(sections, "download_section", boom)
+    v = download.download_video("https://youtu.be/x", tmp_path, start=10, end=40)
+    assert abs(download._probe_duration(v.path) - 30) < 3  # old native path still works

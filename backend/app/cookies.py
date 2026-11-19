@@ -4,7 +4,10 @@ Only YouTube/Google cookies are ever stored, in a private file inside the data f
 automated use can get an account flagged. Export once with:  uv run python -m app.cookies chrome "Profile 5"
 """
 import os
+import shutil
 import sys
+import time
+import uuid
 from http.cookiejar import MozillaCookieJar
 from pathlib import Path
 
@@ -41,13 +44,30 @@ def default_cookie_path() -> Path:
     return get_settings().data_dir / "youtube_cookies.txt"
 
 
+def _session_copy(master: Path) -> str:
+    """yt-dlp rewrites its cookie file on exit with whatever YouTube rotated, and those rotated cookies stop
+    working. So every call works on a private throwaway copy and the exported master file stays pristine."""
+    d = master.parent / ".cookie_sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    for old in d.glob("*.txt"):
+        if now - old.stat().st_mtime > 3600:
+            old.unlink(missing_ok=True)
+    dest = d / f"{uuid.uuid4().hex}.txt"
+    fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.close(fd)
+    shutil.copyfile(master, dest)
+    os.chmod(dest, 0o600)
+    return str(dest)
+
+
 def ytdlp_auth_opts() -> dict:
-    """yt-dlp options that add the exported cookie file, if one is configured or has been exported."""
+    """yt-dlp options that add the exported cookies (as a private copy), if configured or exported."""
     env = os.environ.get("YTDLP_COOKIES_FILE")
-    if env:
-        return {"cookiefile": env} if Path(env).exists() else {}
-    p = default_cookie_path()
-    return {"cookiefile": str(p)} if p.exists() else {}
+    master = Path(env) if env else default_cookie_path()
+    if not master.exists():
+        return {}
+    return {"cookiefile": _session_copy(master)}
 
 
 def main(argv: list[str]) -> int:

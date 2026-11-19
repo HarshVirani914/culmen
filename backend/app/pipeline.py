@@ -33,7 +33,7 @@ def run_analysis(job_id: str, store: JobStore, settings: Settings) -> None:
         store.update(job_id, status="downloading")
         rs, re_ = job.get("range_start"), job.get("range_end")
         vi = download.download_video(job["url"], store.dir(job_id), rs, re_)
-        offset = float(rs or 0)
+        offset = float(vi.actual_start if vi.actual_start is not None else (rs or 0))
         store.update(job_id, status="analyzing", video={
             "title": vi.title, "channel_id": vi.channel_id, "channel": vi.channel,
             "width": vi.width, "height": vi.height, "duration": vi.duration, "offset": offset,
